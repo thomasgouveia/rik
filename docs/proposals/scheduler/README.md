@@ -25,7 +25,9 @@ considering that, this service must be able to recover from a crash **quickly** 
 * Handle various events from nodes 
 
 **Glossary:**
-
+* Node: A server of the cluster
+* Node server: The master node which contain cluster essentials components
+* Node worker: A slave node wich receive instruction from master node
 * Worker: entity managing workloads and managed by the scheduler & controller
 * Workload: a unit of work needed to be deployed inside a worker
 * Cluster: the whole architecture containing every single component of this project. 
@@ -35,40 +37,7 @@ considering that, this service must be able to recover from a crash **quickly** 
 
 ## Architecture overview
 
-![Architecture overview](./assets/arch_overview.png)
-
-
-The `scheduler` domain is composed of two main services, which are composed of multiple components.
-The main service is `scheduler` which communicate with the controller to know when to deploy a new
-workload, update or delete one. The `watcher` is a service to determine whether or not a worker
-is down or still up. It will also receive metrics & events coming from the workers and then redirect
-them to the scheduler.
-
-**Scheduler**
-
-*The scheduler handles the whole logic of the scheduler by receiving events from the scheduler API. This API communicate
-with either the controller and the watcher.*
-
-Components:
-
-* `scheduler/api`: API which receive and send requests to needed services
-* `events/handler`: Depending on the type of API calls received, the event handler will redirect
-the information to the proper sub-component.
-* `workload/manager`: Process an event related to a workload getting down, to be destroyed or needs to be moved
-* `workload/scheduler`: Process controller events needing to schedule a new workload on the cluster
-
-**Watcher**
-
-*The watcher is here to handle requests coming either from scheduler and nodes. It watch after nodes
-in order to create events so the scheduler is warned as soon as a node is down.*
-
-Components:
-
-* `watcher/api`: API which receive and send requests to needed services
-* `api/handler`: Handle API calls and redirect them properly
-* `node/watcher`: Running continuous watch process to know when a node is down
-* `cluster/monitor`: Handle API calls relative to statistics and nodes monitoring
-* `cluster/state_save`: Save the current state of the cluster 
+![Architecture overview](https://cdn.discordapp.com/attachments/828205813336244254/842476988290695187/a051f160-4d85-4c5c-a49b-0354ca9272d2.png)
 
 ## Communication in the cluster 
 
