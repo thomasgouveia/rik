@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package scheduler;
+
+message Empty {}
+
+message WorkLoad {
+  string name = 1;
+  string packageName = 2;
+}
+
+enum ResourceStatus {
+  UNKNOWN = 0;
+  PENDING = 1;
+  RUNNING = 2;
+  FAILED = 3;
+}
+
+message ScheduleResponse {
+    enum ScheduleStatus {
+        UNKNOWN = 0;
+        OK = 1;
+        REJECTED = 2;
+    }
+    ScheduleStatus status = 1;
+}
+
+message WorkerMetric {
+  ResourceStatus status = 1;
+  float memory = 2;
+  float cpu = 3;
+}
+
+message WorkLoadMetric {
+  ResourceStatus status = 1;
+  float memory = 2;
+  float cpu = 3;
+}
+
+message WorkLoadMetricResponse {
+  repeated ResourceStatus status = 1;
+}
