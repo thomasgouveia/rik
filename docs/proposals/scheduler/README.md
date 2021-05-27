@@ -54,27 +54,6 @@ as API definitions are defined through [protoBuf](https://developers.google.com/
 The APIs exposed by our components must be defined through the need defined by the team 
 [controller](#controller) and the team [node](#node)
 
----
-
-## Watcher 
-
-### Events 
-
-Watcher will work with an etcd to store usual and non highly dynamical data.
-The etcd will store:
- - Number of workers
- - workers alias (to improve/simplify communication)
- - worker properties (such as cpu, RAM, memory, etc)
-
-Watcher is here to handle worker data, requesting it to the node manager/agent throught an API.
-Watcher will store in RAM the actual state of each nodes (idle, running, reloading, crashing, etc) and can give this metrics to scheduler when needed. If a node crash/restart, watcher will update datas in etcd.
-Watcher is the only point of communication with workers, it mean that he have to transfert scheduler instructions to the appropriate worker by resolving it using etcd alias name.
-
-### Recovery in case of crash
-
-Watcher self re-instanciate himself and get last data/metrics saved from etcd.
-etcd make sense because it provide a key/value storage that can be roles based ( leaders can read write update and other can readonly ). Provide safe cold storage on disk and great performance, can handle event on change (well to couple with watcher or controller maybe ). etcd is shared by all server components (read only), so we can get state metrics directly from controller or scheduler if it make sense.
-[source](https://www.ibm.com/cloud/learn/etcd)
 
 ---
 
@@ -128,3 +107,31 @@ Following part is a list of questions needing answers.
 
 - When are defined the networking rules and adressing over the network ? Also, does the networking modules are linked to the controller ? 
 - In the V0 will be there any constraint from networking on scheduler ?
+
+---
+
+## Deprecated 
+
+### Watcher 
+
+Watcher is here to handle worker data, requesting it to the node manager/agent throught an API.
+Watcher will store in RAM the actual state of each nodes (idle, running, reloading, crashing, 
+etc) and can give this metrics to scheduler when needed. If a node crash/restart, watcher will 
+update datas in etcd.
+Watcher is the only point of communication with workers, it mean that he have to transfert
+ scheduler instructions to the appropriate worker by resolving it using etcd alias name.
+
+
+#### Events 
+
+Watcher will work with an etcd to store usual and non highly dynamical data.
+The etcd will store:
+ - Number of workers
+ - workers alias (to improve/simplify communication)
+ - worker properties (such as cpu, RAM, memory, etc)
+
+#### Recovery in case of crash
+
+Watcher self re-instanciate himself and get last data/metrics saved from etcd.
+etcd make sense because it provide a key/value storage that can be roles based ( leaders can read write update and other can readonly ). Provide safe cold storage on disk and great performance, can handle event on change (well to couple with watcher or controller maybe ). etcd is shared by all server components (read only), so we can get state metrics directly from controller or scheduler if it make sense.
+[source](https://www.ibm.com/cloud/learn/etcd)
