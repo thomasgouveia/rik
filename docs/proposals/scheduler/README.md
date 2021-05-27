@@ -20,7 +20,7 @@ considering that, this service must be able to recover from a crash **quickly** 
 * Request workload update 
 * Request workload deletion
 * Handle statistics & hardware informations from nodes
-* Lift up informations from nodes to controller 
+* Forward informations from nodes to controller 
 
 **Glossary:**
 * Node: A server of the cluster
