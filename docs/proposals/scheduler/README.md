@@ -2,10 +2,9 @@
 
 ## Main goal
 
-The `scheduler` goal is to determine whether or not a workload can work on the cluster.
-In the case a workload fits to a node, we send severals orders & informations to the node so
-he can handle the needed workload. The controller can also determine in a first time, if a workload can be managed in the cluster, but
-the scheduler has the **last word** on it. 
+The `scheduler` goal is to find the appropriate location for a workload's instance to be ran.
+In the case an instance fits to a node, `scheduler` orders the worker node to run it. The controller determines
+if the requested resources from the workload can be managed in the cluster, and then the scheduler receives the `scheduling request`.
 
 This service **must** be able at anytime, to request a delete or an update of a workload on a specific
 node. These requests will be sent based on event the scheduler receive. The events are coming either from the controller or from a node.
@@ -17,19 +16,19 @@ considering that, this service must be able to recover from a crash **quickly** 
 
 **Features summary**:
 
-* Allocate a workload to a node
+* Select an appropriate worker node for workload instance to run on.
 * Request workload update 
 * Request workload deletion
 * Handle statistics & hardware informations from nodes
 * Lift up informations from nodes to controller 
-* Handle various events from nodes 
 
 **Glossary:**
 * Node: A server of the cluster
 * Node server: The master node which contain cluster essentials components
 * Node worker: A slave node wich receive instruction from master node
 * Worker: entity managing workloads and managed by the scheduler & controller
-* Workload: a unit of work needed to be deployed inside a worker
+* Workload: a definition of an unit of work needed to be deployed inside a worker (i.e. a yaml file)
+* Instance: Defined by a workload, it is an instance of the workload. A workload isn't limited to a single instance. 
 * Cluster: the whole architecture containing every single component of this project. 
 * Server / Master: a server containing every administrative services (scheduler & controller)
 
@@ -112,7 +111,7 @@ This definition is here to give a scope to what is needed in the V0 of the produ
 - Schedule / Unschedule a workload on the worker 
 - Receive simple metrics from the worker
 - Knowing whether the worker can handle a workload
-- Lift up to the controller a workload when it gets stopped (expected or not)
+- Forward to the controller a workload when it gets stopped (expected or not)
 
 ## Schematic
 
