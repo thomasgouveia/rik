@@ -51,10 +51,6 @@ to write APIs for each component.
 On top of that, we will be using [gRPC](https://grpc.io/) for communication between components. It will be handy to use 
 as API definitions are defined through [protoBuf](https://developers.google.com/protocol-buffers). 
 
-There is an interrogation around the controller & scheduler communication. They may be in the same 
-physical machine and not isolated one from another, so do we still need to use gRPC here ? Can't we 
-use any other solution of communication, as we are on the same physical machine ?
-
 The APIs exposed by our components must be defined through the need defined by the team 
 [controller](#controller) and the team [node](#node)
 
