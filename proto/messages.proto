@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package scheduler;
 
-message Empty {}
-
+// Simple WorkLoad description
 message WorkLoad {
   string name = 1;
-  string packageName = 2;
+  string tag = 2;
+  string image = 3;
 }
 
 enum ResourceStatus {
@@ -14,29 +14,24 @@ enum ResourceStatus {
   PENDING = 1;
   RUNNING = 2;
   FAILED = 3;
+  TERMINATING = 4;
 }
 
-message ScheduleResponse {
-    enum ScheduleStatus {
-        UNKNOWN = 0;
-        OK = 1;
-        REJECTED = 2;
-    }
-    ScheduleStatus status = 1;
-}
-
+// Metrics definition for Workers
 message WorkerMetric {
   ResourceStatus status = 1;
-  float memory = 2;
-  float cpu = 3;
+  string metrics = 2;
 }
 
-message WorkLoadMetric {
+// Metrics definition for WorkLoad instances
+message InstanceMetric {
   ResourceStatus status = 1;
-  float memory = 2;
-  float cpu = 3;
 }
 
-message WorkLoadMetricResponse {
-  repeated ResourceStatus status = 1;
+// Definition of metrics send by node
+message Status {
+ oneof status {
+       InstanceMetric instance = 1;
+       WorkerMetric worker = 2;
+ }
 }
