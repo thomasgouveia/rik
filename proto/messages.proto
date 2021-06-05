@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package scheduler;
+package common;
 
 // Simple WorkLoad description
-message WorkLoad {
+message Workload {
   string name = 1;
   string tag = 2;
   string image = 3;

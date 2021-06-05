@@ -1,0 +1,15 @@
+[package]
+name = "rik-scheduler"
+version = "0.1.0"
+authors = ["Protocole <burgoni.alexandre@protonmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+prost = "0.7.0"
+tonic = "0.4.3"
+tokio = { version = "1.6.1", features = ["full"] }
+
+[build-dependencies]
+tonic-build = "0.4.2"
