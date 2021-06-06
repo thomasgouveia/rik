@@ -1,0 +1,9 @@
+[package]
+name = "riklet"
+version = "0.1.0"
+authors = ["Thomas Gouveia <thomas.gouveia@etu.umontpellier.fr>", "Hugo Amalric <hugo.amalric@etu.umontpellier.fr>", "Sylvain Renaud <sylvain.reynaud@etu.umontpellier.fr>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
