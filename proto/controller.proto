@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "messages.proto";
+import "common.proto";
 import "google/protobuf/empty.proto";
 
 package controller;
@@ -13,5 +13,5 @@ service Controller {
 
   // Get worker and instances status updates.
   // Returns a stream of Status messages.
-  rpc GetStatusUpdates(google.protobuf.Empty) returns (stream common.Status);
+  rpc GetStatusUpdates(google.protobuf.Empty) returns (stream common.WorkerStatus);
 }

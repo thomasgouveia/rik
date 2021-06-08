@@ -1,8 +1,8 @@
 
 syntax = "proto3";
 
-import "messages.proto";
-import "google/protobuf/Empty.proto";
+import "common.proto";
+import "google/protobuf/empty.proto";
 
 package worker;
 
@@ -14,5 +14,5 @@ service Worker {
   rpc Register(google.protobuf.Empty) returns (stream common.Workload);
 
   // Worker metrics udpates (push model)
-  rpc SendStatusUpdates(stream common.Status) returns (google.protobuf.Empty);
+  rpc SendStatusUpdates(stream common.WorkerStatus) returns (google.protobuf.Empty);
 }

@@ -29,7 +29,7 @@ message InstanceMetric {
 }
 
 // Definition of metrics send by node
-message Status {
+message WorkerStatus {
  oneof status {
        InstanceMetric instance = 1;
        WorkerMetric worker = 2;
