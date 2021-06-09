@@ -43,7 +43,7 @@ impl Worker for WorkerService {
             kind: EventKind::Register,
         }).await.unwrap();
         let sender = tx.clone();
-        tokio::spawn(async move {
+        tokio::task::spawn(async move {
             for feature in 1..10 {
                 sender.send(Ok(Workload {
                     name: String::from(format!("{} test", feature)),
@@ -95,11 +95,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Ended the thread");
     });
 
-    let receiver = thread::spawn(move || {
-        for message in receiver.blocking_recv(){
-            println!("New event received {:#?}", message);
+     let thread = thread::spawn(move || {
+        loop {
+            let message = receiver.blocking_recv();
+            println!("New event received {:#?}", message.unwrap());
         }
-        println!("Ending of receiver thread")
     });
     grpc.await;
     println!("Reaching the end of program");
