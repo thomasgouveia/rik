@@ -3,13 +3,10 @@ use common::{ResourceStatus, WorkerMetric, InstanceMetric, WorkerStatus, Workloa
 use worker::worker_server::{Worker as WorkerClient, WorkerServer};
 use protobuf::well_known_types::Empty;
 use tokio_stream::wrappers::ReceiverStream;
-use tokio::sync::mpsc::{channel, Sender, Receiver};
-use std::thread;
-use std::time::Duration;
-use std::thread::sleep;
-use log::{info, error, debug};
+use tokio::sync::mpsc::{channel, Sender};
+use log::{info, error};
 use env_logger::Env;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 use std::net::SocketAddr;
 
 // Common is needed to be included, as controller & worker
@@ -45,7 +42,7 @@ impl WorkerClient for WorkerService {
         _request: Request<()>,
     ) -> Result<Response<Self::RegisterStream>, Status> {
         // Streaming channel that sends workloads
-        let (mut stream_tx, stream_rx) = channel(1024);
+        let (stream_tx, stream_rx) = channel(1024);
         // Channel coming from scheduling thread to send requests to schedule instances
         let (tx, mut rx) = channel::<Event>(1024);
         let addr = _request.remote_addr()
@@ -57,9 +54,11 @@ impl WorkerClient for WorkerService {
             .map_err(|_| Status::new(Code::Unavailable, "Worker service cannot process your request"))?;
 
         tokio::spawn(async move {
+            // There is an issue in here, as if we lose the connection with the remote client
+            // this thread continue to leave, it is not what we want!
             while let Some(event) = rx.recv().await {
                 match event {
-                    Event::RegisterSuccessful(e) => {
+                    Event::RegisterSuccessful(_) => {
                         info!("This worker got registered successfully, now listening for instances");
                     },
                     Event::RegisterFailed => {
@@ -72,8 +71,6 @@ impl WorkerClient for WorkerService {
                     _ => unimplemented!("Worker event not implemented"),
                 }
             }
-
-            error!("Lost everything");
         });
         Ok(Response::new(ReceiverStream::new(stream_rx)))
     }
@@ -129,7 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let server = WorkerServer::new(service);
     let mut manager = Manager::new();
 
-    let grpc = tokio::spawn(async move {
+    tokio::spawn(async move {
         let server =  Server::builder()
             .add_service(server)
             .serve("127.0.0.1:8081".parse().unwrap());
