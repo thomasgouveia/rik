@@ -1,13 +1,16 @@
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::{transport::Server, Request, Response, Status, Code};
 use common::{ResourceStatus, WorkerMetric, InstanceMetric, WorkerStatus, Workload};
-use worker::worker_server::{Worker, WorkerServer};
+use worker::worker_server::{Worker as WorkerClient, WorkerServer};
 use protobuf::well_known_types::Empty;
 use tokio_stream::wrappers::ReceiverStream;
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{channel, Sender, Receiver};
 use std::thread;
 use std::time::Duration;
 use std::thread::sleep;
-use tokio::sync::mpsc::Sender;
+use log::{info, error, debug};
+use env_logger::Env;
+use std::sync::{Arc, Mutex};
+use std::net::SocketAddr;
 
 // Common is needed to be included, as controller & worker
 // are using it
@@ -23,38 +26,56 @@ pub mod worker {
     tonic::include_proto!("worker");
 }
 
+type EventChannel = (u8, Event);
+
 #[derive(Debug, Clone)]
 pub struct WorkerService {
-    sender: Sender<Event>,
+    /// Channel used in order to communicate with the main thread
+    /// In the case the worker doesn't know its ID yet, put 0 in the first
+    /// item of the tuple
+    sender: Sender<EventChannel>,
 }
 
 #[tonic::async_trait]
-impl Worker for WorkerService {
+impl WorkerClient for WorkerService {
     type RegisterStream = ReceiverStream<Result<Workload, Status>>;
-
-
 
     async fn register(
         &self,
         _request: Request<()>,
     ) -> Result<Response<Self::RegisterStream>, Status> {
-        let (mut tx, rx) = mpsc::channel(1024);
-        self.sender.send(Event {
-            kind: EventKind::Register,
-        }).await.unwrap();
-        let sender = tx.clone();
-        tokio::task::spawn(async move {
-            for feature in 1..10 {
-                sender.send(Ok(Workload {
-                    name: String::from(format!("{} test", feature)),
-                    tag: String::from(format!("{} test", feature)),
-                    image: String::from(format!("{} test", feature)),
-                })).await.unwrap_or_else(|e| { println!("Error is {}", e)});
+        // Streaming channel that sends workloads
+        let (mut stream_tx, stream_rx) = channel(1024);
+        // Channel coming from scheduling thread to send requests to schedule instances
+        let (tx, mut rx) = channel::<Event>(1024);
+        let addr = _request.remote_addr()
+            .expect("No remote address found");
+
+        // At this time the worker doesn't have an id
+        self.sender.send((0, Event::Register(tx, addr)))
+            .await
+            .map_err(|_| Status::new(Code::Unavailable, "Worker service cannot process your request"))?;
+
+        tokio::spawn(async move {
+            while let Some(event) = rx.recv().await {
+                match event {
+                    Event::RegisterSuccessful(e) => {
+                        info!("This worker got registered successfully, now listening for instances");
+                    },
+                    Event::RegisterFailed => {
+                        info!("This worker failed its registration process, closing");
+                    },
+                    Event::Schedule(e) => {
+                        info!("New workload requesting to schedule {:#?}", e);
+                        stream_tx.send(Ok(e)).await.unwrap_or_else(|e| { error!("Error is {}", e)});
+                    },
+                    _ => unimplemented!("Worker event not implemented"),
+                }
             }
-            println!("End of register thread");
+
+            error!("Lost everything");
         });
-        println!("End of register ");
-        Ok(Response::new(ReceiverStream::new(rx)))
+        Ok(Response::new(ReceiverStream::new(stream_rx)))
     }
 
     async fn send_status_updates(
@@ -66,43 +87,82 @@ impl Worker for WorkerService {
 }
 
 #[derive(Debug)]
-pub enum EventKind {
-    Register,
+pub enum Event {
+    Register(Sender<Event>, SocketAddr),
+    RegisterSuccessful(Arc<Worker>),
+    RegisterFailed,
+    Unregister,
+    Schedule(Workload),
+    Information(String)
 }
 
 #[derive(Debug)]
-pub struct Event {
-    kind: EventKind
+pub struct Worker {
+    id: u8,
+    channel: Sender<Event>,
+    addr: SocketAddr,
+}
+
+#[derive(Debug)]
+struct Manager {
+    workers: Vec<Arc<Worker>>,
+}
+
+impl Manager {
+    fn new() -> Manager {
+        Manager {
+            workers: Vec::new(),
+        }
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Hello, world!");
-    let (sender, mut receiver) = mpsc::channel::<Event>(1024);
+    env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
+    info!("Starting up...");
+
+    let mut worker_id: u8 = 0;
+    let (sender, mut receiver) = channel::<EventChannel>(1024);
     let service = WorkerService {
         sender,
     };
-    let server = WorkerServer::new(service.clone());
+    let server = WorkerServer::new(service);
+    let mut manager = Manager::new();
 
     let grpc = tokio::spawn(async move {
         let server =  Server::builder()
             .add_service(server)
             .serve("127.0.0.1:8081".parse().unwrap());
 
+        info!("Worker gRPC listening thread up");
+
         if let Err(e) = server.await {
-            println!("Error {}", e);
+            error!("{}", e);
         }
-        println!("Ended the thread");
     });
 
-     let thread = thread::spawn(move || {
-        loop {
-            let message = receiver.blocking_recv();
-            println!("New event received {:#?}", message.unwrap());
+    while let Some(e) = receiver.recv().await {
+        match e {
+            (_, Event::Register(channel, addr)) => {
+                worker_id += 1;
+                let worker = Arc::new(Worker {
+                    id: worker_id,
+                    channel,
+                    addr
+                });
+                worker.channel.send(Event::RegisterSuccessful(worker.clone())).await?;
+                info!("Worker with ID {} is now registered, ip: {}", worker.id, worker.addr);
+
+                worker.channel.send(Event::Schedule(Workload {
+                    name: String::from("testing"),
+                    tag: String::from("0.5.1"),
+                    image: String::from("dind"),
+                })).await?;
+                manager.workers.push(worker);
+            },
+            kind => info!("Received event : {:#?}", kind),
         }
-    });
-    grpc.await;
-    println!("Reaching the end of program");
+    };
 
     Ok(())
 }
