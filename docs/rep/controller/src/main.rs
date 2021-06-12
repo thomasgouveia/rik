@@ -1,54 +1,24 @@
 use std::thread;
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 
-#[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
-}
+mod api;
+mod tools;
 
-#[post("/echo")]
-async fn echo(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
-}
-
-async fn manual_hello() -> impl Responder {
-    HttpResponse::Ok().body("Hey there!")
-}
+use api::{external::ExternalAPI, internal::InternalAPI};
+use tools::Logger;
 
 fn main() {
-    let internal_thread = thread::spawn(move || {
-        internal().unwrap();
-    });
-    let external_thread = thread::spawn(move || {
-        external().unwrap();
-    });
+    let logger = Logger::new(String::from("Main"));
+    let internal_api = InternalAPI::new(&logger);
+    let external_api = ExternalAPI::new(&logger);
 
-    internal_thread.join().unwrap();
-    external_thread.join().unwrap();
-}
-
-#[actix_web::main]
-async fn external() -> std::io::Result<()>{
-    HttpServer::new(|| {
-        App::new()
-            .service(hello)
-            .service(echo)
-            .route("/hey", web::get().to(manual_hello))
+    thread::spawn(move || {
+        internal_api.run();
     })
-    .bind("127.0.0.1:4000")?
-    .run()
-    .await
-}
-
-#[actix_web::main]
-async fn internal() -> std::io::Result<()>{
-    HttpServer::new(|| {
-        App::new()
-            .service(hello)
-            .service(echo)
-            .route("/hey", web::get().to(manual_hello))
+    .join()
+    .unwrap();
+    thread::spawn(move || {
+        external_api.run();
     })
-    .bind("127.0.0.1:3000")?
-    .run()
-    .await
+    .join()
+    .unwrap();
 }
