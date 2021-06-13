@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use std::sync::mpsc::Receiver;
 
 enum LogType {
     Error,
@@ -8,12 +9,16 @@ enum LogType {
 }
 
 pub struct Logger {
+    receiver: Receiver<String>,
     name: String,
 }
 
 impl Logger {
-    pub fn new(name: String) -> Logger {
-        Logger { name }
+    pub fn new(logger_receiver: Receiver<String>, name: String) -> Logger {
+        Logger {
+            receiver: logger_receiver,
+            name,
+        }
     }
 
     pub fn log(&self, msg: &str) {
@@ -30,6 +35,12 @@ impl Logger {
 
     pub fn debug(&self, msg: &str) {
         self.write(LogType::Debug, msg);
+    }
+
+    pub fn run(&self) {
+        for notification in &self.receiver {
+            println!("{}", notification);
+        }
     }
 
     fn write(&self, log_type: LogType, msg: &str) {
