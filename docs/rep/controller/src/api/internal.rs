@@ -1,24 +1,41 @@
-use std::sync::mpsc::Sender;
+use crate::tools::{LogType, Logging};
+use std::sync::mpsc::{Receiver, Sender};
 
 pub struct InternalAPI {
-    logger: Sender<String>,
-    external_api: Option<Sender<String>>,
+    logger: Sender<Logging>,
+    external_sender: Sender<String>,
+    internal_receiver: Receiver<String>,
 }
 
 impl InternalAPI {
-    pub fn new(logger_sender: Sender<String>) -> InternalAPI {
+    pub fn new(
+        logger_sender: Sender<Logging>,
+        external_sender: Sender<String>,
+        internal_receiver: Receiver<String>,
+    ) -> InternalAPI {
         InternalAPI {
             logger: logger_sender,
-            external_api: None,
+            external_sender,
+            internal_receiver,
         }
     }
 
-    pub fn external_api_mut(&mut self) -> &mut Option<Sender<String>> {
-        &mut self.external_api
+    pub fn run(&self) {
+        self.logger
+            .send(Logging {
+                message: String::from("Server running..."),
+                log_type: LogType::Log,
+            })
+            .unwrap();
+        self.external_sender
+            .send(String::from("From Internal to External"))
+            .unwrap();
+        self.listen();
     }
 
-    pub fn run(&self) {
-        self.logger.send(String::from("Server running...")).unwrap();
-        // self.logger.log("Server running...");
+    fn listen(&self) {
+        for notification in &self.internal_receiver {
+            println!("{}", notification);
+        }
     }
 }
