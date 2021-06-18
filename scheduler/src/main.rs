@@ -8,6 +8,8 @@ use log::{info, error};
 use env_logger::Env;
 use std::sync::{Arc};
 use std::net::SocketAddr;
+use tokio_stream::StreamExt;
+use tokio::io::AsyncReadExt;
 
 // Common is needed to be included, as controller & worker
 // are using it
@@ -23,14 +25,12 @@ pub mod worker {
     tonic::include_proto!("worker");
 }
 
-type EventChannel = (u8, Event);
-
 #[derive(Debug, Clone)]
 pub struct WorkerService {
     /// Channel used in order to communicate with the main thread
     /// In the case the worker doesn't know its ID yet, put 0 in the first
     /// item of the tuple
-    sender: Sender<EventChannel>,
+    sender: Sender<Event>,
 }
 
 #[tonic::async_trait]
@@ -42,67 +42,68 @@ impl WorkerClient for WorkerService {
         _request: Request<()>,
     ) -> Result<Response<Self::RegisterStream>, Status> {
         // Streaming channel that sends workloads
-        let (stream_tx, stream_rx) = channel(1024);
-        // Channel coming from scheduling thread to send requests to schedule instances
-        let (tx, mut rx) = channel::<Event>(1024);
+        let (stream_tx, stream_rx) = channel::<Result<Workload, tonic::Status>>(1024);
         let addr = _request.remote_addr()
             .expect("No remote address found");
 
-        // At this time the worker doesn't have an id
-        self.sender.send((0, Event::Register(tx, addr)))
+        self.sender.send(Event::Register(stream_tx, addr))
             .await
             .map_err(|_| Status::new(Code::Unavailable, "Worker service cannot process your request"))?;
 
-        tokio::spawn(async move {
-            // There is an issue in here, as if we lose the connection with the remote client
-            // this thread continue to leave, it is not what we want!
-            while let Some(event) = rx.recv().await {
-                match event {
-                    Event::RegisterSuccessful(_) => {
-                        info!("This worker got registered successfully, now listening for instances");
-                    },
-                    Event::RegisterFailed => {
-                        info!("This worker failed its registration process, closing");
-                    },
-                    Event::Schedule(e) => {
-                        info!("New workload requesting to schedule {:#?}", e);
-                        stream_tx.send(Ok(e)).await.unwrap_or_else(|e| { error!("Error is {}", e)});
-                    },
-                    _ => unimplemented!("Worker event not implemented"),
-                }
-            }
-        });
         Ok(Response::new(ReceiverStream::new(stream_rx)))
     }
 
+    /**
+    * For now we can only fetch a single status updates, as `try_next`
+    * isn't blocking! :(
+    * We should make this update of data blocking, so we can receive any status
+    * update
+    *
+    **/
     async fn send_status_updates(
         &self,
         _request: Request<tonic::Streaming<WorkerStatus>>,
     ) -> Result<Response<()>, Status> {
-        unimplemented!()
+        let mut stream = _request.into_inner();
+
+        while let Some(data) = stream.try_next().await? {
+            info!("Getting some info");
+            info!("{:#?}", data);
+        }
+
+        Ok(Response::new(()))
     }
 }
 
 #[derive(Debug)]
 pub enum Event {
-    Register(Sender<Event>, SocketAddr),
-    RegisterSuccessful(Arc<Worker>),
-    RegisterFailed,
-    Unregister,
-    Schedule(Workload),
-    Information(String)
+    Register(Sender<Result<Workload, Status>>, SocketAddr),
 }
 
 #[derive(Debug)]
 pub struct Worker {
+    /// Unique ID for the worker, only used internally for now
     id: u8,
-    channel: Sender<Event>,
+    /// This channel is used to communicate between the manager
+    /// and the worker instance
+    /// # Examples
+    ///
+    /// The following code is used in order to schedule an instance
+    /// ```
+    /// worker.channel.send(Ok(Workload {
+    ///     instance_id: String::from("testing"),
+    ///     definition: String::from("{}"),
+    /// })).await?;
+    /// ```
+    channel: Sender<Result<Workload, Status>>,
+    /// Remote addr of the worker
     addr: SocketAddr,
 }
 
 #[derive(Debug)]
 struct Manager {
     workers: Vec<Arc<Worker>>,
+
 }
 
 impl Manager {
@@ -119,11 +120,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting up...");
 
     let mut worker_id: u8 = 0;
-    let (sender, mut receiver) = channel::<EventChannel>(1024);
-    let service = WorkerService {
+    let (sender, mut receiver) = channel::<Event>(1024);
+
+    let server = WorkerServer::new(WorkerService {
         sender,
-    };
-    let server = WorkerServer::new(service);
+    });
     let mut manager = Manager::new();
 
     tokio::spawn(async move {
@@ -140,21 +141,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     while let Some(e) = receiver.recv().await {
         match e {
-            (_, Event::Register(channel, addr)) => {
+            Event::Register(channel, addr) => {
                 worker_id += 1;
                 let worker = Arc::new(Worker {
                     id: worker_id,
                     channel,
                     addr
                 });
-                worker.channel.send(Event::RegisterSuccessful(worker.clone())).await?;
                 info!("Worker with ID {} is now registered, ip: {}", worker.id, worker.addr);
 
-                worker.channel.send(Event::Schedule(Workload {
-                    name: String::from("testing"),
-                    tag: String::from("0.5.1"),
-                    image: String::from("dind"),
+                worker.channel.send(Ok(Workload {
+                    instance_id: String::from("testing"),
+                    definition: String::from("{}"),
                 })).await?;
+                worker.channel.send(Err(Status::aborted("Cannot register now"))).await?;
                 manager.workers.push(worker);
             },
             kind => info!("Received event : {:#?}", kind),
