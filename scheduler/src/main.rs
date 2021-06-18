@@ -3,7 +3,7 @@ use common::{ResourceStatus, WorkerMetric, InstanceMetric, WorkerStatus, Workloa
 use worker::worker_server::{Worker as WorkerClient, WorkerServer};
 use protobuf::well_known_types::Empty;
 use tokio_stream::wrappers::ReceiverStream;
-use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::mpsc::{channel, Sender, Receiver};
 use log::{info, error};
 use env_logger::Env;
 use std::sync::{Arc};
@@ -103,14 +103,64 @@ pub struct Worker {
 #[derive(Debug)]
 struct Manager {
     workers: Vec<Arc<Worker>>,
-
+    channel: Receiver<Event>,
+    worker_increment: u8,
 }
 
 impl Manager {
-    fn new() -> Manager {
-        Manager {
+    async fn run() -> Result<Manager, Box<dyn std::error::Error>> {
+        let (sender, mut receiver) = channel::<Event>(1024);
+        let mut instance = Manager {
             workers: Vec::new(),
-        }
+            channel: receiver,
+            worker_increment: 0,
+        };
+        instance.run_worker_listener(sender);
+        let channel_listener = instance.listen();
+        channel_listener.await?;
+        Ok(instance)
+    }
+
+    fn run_worker_listener(&self, sender: Sender<Event>) {
+        let server = WorkerServer::new(WorkerService {
+            sender,
+        });
+        tokio::spawn(async move {
+            let server =  Server::builder()
+                .add_service(server)
+                .serve("127.0.0.1:8081".parse().unwrap());
+
+            info!("Worker gRPC listening thread up");
+
+            if let Err(e) = server.await {
+                error!("{}", e);
+            }
+        });
+    }
+
+    async fn listen(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        while let Some(e) = &self.channel.recv().await {
+            match e {
+                Event::Register(channel, addr) => {
+                    self.worker_increment += 1;
+                    let worker = Arc::new(Worker {
+                        id: *&self.worker_increment,
+                        channel: channel.clone(),
+                        addr: addr.clone(),
+                    });
+                    info!("Worker with ID {} is now registered, ip: {}", worker.id, worker.addr);
+
+                    worker.channel.send(Ok(Workload {
+                        instance_id: String::from("testing"),
+                        definition: String::from("{}"),
+                    })).await?;
+                    worker.channel.send(Err(Status::aborted("Cannot register now"))).await?;
+                    self.workers.push(worker);
+                },
+                kind => info!("Received event : {:#?}", kind),
+            }
+        };
+        Ok(())
     }
 }
 
@@ -118,48 +168,7 @@ impl Manager {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     info!("Starting up...");
-
-    let mut worker_id: u8 = 0;
-    let (sender, mut receiver) = channel::<Event>(1024);
-
-    let server = WorkerServer::new(WorkerService {
-        sender,
-    });
-    let mut manager = Manager::new();
-
-    tokio::spawn(async move {
-        let server =  Server::builder()
-            .add_service(server)
-            .serve("127.0.0.1:8081".parse().unwrap());
-
-        info!("Worker gRPC listening thread up");
-
-        if let Err(e) = server.await {
-            error!("{}", e);
-        }
-    });
-
-    while let Some(e) = receiver.recv().await {
-        match e {
-            Event::Register(channel, addr) => {
-                worker_id += 1;
-                let worker = Arc::new(Worker {
-                    id: worker_id,
-                    channel,
-                    addr
-                });
-                info!("Worker with ID {} is now registered, ip: {}", worker.id, worker.addr);
-
-                worker.channel.send(Ok(Workload {
-                    instance_id: String::from("testing"),
-                    definition: String::from("{}"),
-                })).await?;
-                worker.channel.send(Err(Status::aborted("Cannot register now"))).await?;
-                manager.workers.push(worker);
-            },
-            kind => info!("Received event : {:#?}", kind),
-        }
-    };
-
+    let manager = Manager::run();
+    manager.await?;
     Ok(())
 }
