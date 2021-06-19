@@ -1,7 +1,7 @@
 use tonic::{transport::Server, Request, Response, Status, Code};
-use common::{ResourceStatus, WorkerMetric, InstanceMetric, WorkerStatus, Workload};
-use worker::worker_server::{Worker as WorkerClient, WorkerServer};
-use protobuf::well_known_types::Empty;
+use rik_scheduler::common::{WorkerStatus, Workload};
+use rik_scheduler::worker::worker_server::{WorkerServer, Worker as WorkerClient};
+use rik_scheduler::{Event, SchedulerError, WorkloadChannelType};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio::sync::mpsc::{channel, Sender, Receiver};
 use log::{info, error};
@@ -9,40 +9,26 @@ use env_logger::Env;
 use std::sync::{Arc};
 use std::net::SocketAddr;
 use tokio_stream::StreamExt;
-use tokio::io::AsyncReadExt;
 
-// Common is needed to be included, as controller & worker
-// are using it
-pub mod common {
-    tonic::include_proto!("common");
-}
-
-pub mod controller {
-    tonic::include_proto!("controller");
-}
-
-pub mod worker {
-    tonic::include_proto!("worker");
-}
 
 #[derive(Debug, Clone)]
 pub struct WorkerService {
     /// Channel used in order to communicate with the main thread
     /// In the case the worker doesn't know its ID yet, put 0 in the first
     /// item of the tuple
-    sender: Sender<Event>,
+    pub sender: Sender<Event>,
 }
 
 #[tonic::async_trait]
 impl WorkerClient for WorkerService {
-    type RegisterStream = ReceiverStream<Result<Workload, Status>>;
+    type RegisterStream = ReceiverStream<WorkloadChannelType>;
 
     async fn register(
         &self,
         _request: Request<()>,
     ) -> Result<Response<Self::RegisterStream>, Status> {
         // Streaming channel that sends workloads
-        let (stream_tx, stream_rx) = channel::<Result<Workload, tonic::Status>>(1024);
+        let (stream_tx, stream_rx) = channel::<WorkloadChannelType>(1024);
         let addr = _request.remote_addr()
             .expect("No remote address found");
 
@@ -75,10 +61,6 @@ impl WorkerClient for WorkerService {
     }
 }
 
-#[derive(Debug)]
-pub enum Event {
-    Register(Sender<Result<Workload, Status>>, SocketAddr),
-}
 
 #[derive(Debug)]
 pub struct Worker {
@@ -100,28 +82,38 @@ pub struct Worker {
     addr: SocketAddr,
 }
 
+impl Worker {
+    fn new(id: u8, channel: Sender<Result<Workload, Status>>, addr: SocketAddr) -> Worker {
+        Worker {
+            id,
+            channel,
+            addr
+        }
+    }
+}
+
 #[derive(Debug)]
-struct Manager {
-    workers: Vec<Arc<Worker>>,
+pub struct Manager {
+    workers: Vec<Worker>,
     channel: Receiver<Event>,
     worker_increment: u8,
 }
 
 impl Manager {
     async fn run() -> Result<Manager, Box<dyn std::error::Error>> {
-        let (sender, mut receiver) = channel::<Event>(1024);
+        let (sender, receiver) = channel::<Event>(1024);
         let mut instance = Manager {
             workers: Vec::new(),
             channel: receiver,
             worker_increment: 0,
         };
-        instance.run_worker_listener(sender);
+        instance.run_workers_listener(sender);
         let channel_listener = instance.listen();
         channel_listener.await?;
         Ok(instance)
     }
 
-    fn run_worker_listener(&self, sender: Sender<Event>) {
+    fn run_workers_listener(&self, sender: Sender<Event>) {
         let server = WorkerServer::new(WorkerService {
             sender,
         });
@@ -143,24 +135,21 @@ impl Manager {
             match e {
                 Event::Register(channel, addr) => {
                     self.worker_increment += 1;
-                    let worker = Arc::new(Worker {
-                        id: *&self.worker_increment,
-                        channel: channel.clone(),
-                        addr: addr.clone(),
-                    });
-                    info!("Worker with ID {} is now registered, ip: {}", worker.id, worker.addr);
-
-                    worker.channel.send(Ok(Workload {
-                        instance_id: String::from("testing"),
-                        definition: String::from("{}"),
-                    })).await?;
-                    worker.channel.send(Err(Status::aborted("Cannot register now"))).await?;
-                    self.workers.push(worker);
+                    match self.workers.len() {
+                        0 => self.register(channel.clone(), addr.clone()),
+                        _ => channel.send(Err(Status::aborted("Cluster is full"))).await?,
+                    }
                 },
                 kind => info!("Received event : {:#?}", kind),
             }
         };
         Ok(())
+    }
+
+    fn register(&mut self, channel: Sender<WorkloadChannelType>, addr: SocketAddr) {
+        let worker = Worker::new(*&self.worker_increment, channel, addr);
+        info!("Worker with ID {} is now registered, ip: {}", worker.id, worker.addr);
+        self.workers.push(worker);
     }
 }
 
