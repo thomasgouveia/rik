@@ -4,9 +4,8 @@ package common;
 
 // Simple WorkLoad description
 message Workload {
-  string name = 1;
-  string tag = 2;
-  string image = 3;
+  string instance_id = 1;
+  string definition = 2;
 }
 
 enum ResourceStatus {
@@ -14,7 +13,7 @@ enum ResourceStatus {
   PENDING = 1;
   RUNNING = 2;
   FAILED = 3;
-  TERMINATING = 4;
+  TERMINATED = 4;
 }
 
 // Metrics definition for Workers
@@ -26,6 +25,7 @@ message WorkerMetric {
 // Metrics definition for WorkLoad instances
 message InstanceMetric {
   ResourceStatus status = 1;
+  string metrics = 2;
 }
 
 // Definition of metrics send by node
