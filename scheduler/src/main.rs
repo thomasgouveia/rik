@@ -2,7 +2,9 @@ use env_logger::Env;
 use log::{error, info};
 use protobuf::well_known_types::Empty;
 use rik_scheduler::common::{WorkerStatus, Workload};
-use rik_scheduler::controller::controller_server::{Controller, ControllerServer};
+use rik_scheduler::controller::controller_server::{
+    Controller as ControllerClient, ControllerServer,
+};
 use rik_scheduler::worker::worker_server::{Worker as WorkerClient, WorkerServer};
 use rik_scheduler::{Event, SchedulerError, WorkloadChannelType};
 use std::default::Default;
@@ -74,7 +76,7 @@ pub struct ControllerService {
 }
 
 #[tonic::async_trait]
-impl Controller for ControllerService {
+impl ControllerClient for ControllerService {
     async fn schedule_instance(&self, _request: Request<Workload>) -> Result<Response<()>, Status> {
         self.sender
             .send(Event::Schedule(_request.get_ref().clone()))
@@ -96,8 +98,9 @@ impl Controller for ControllerService {
         _request: Request<()>,
     ) -> Result<Response<Self::GetStatusUpdatesStream>, Status> {
         let (stream_tx, stream_rx) = channel::<Result<WorkerStatus, Status>>(1024);
+        let addr = _request.remote_addr().expect("No remote address found");
         self.sender
-            .send(Event::Subscribe(stream_tx))
+            .send(Event::Subscribe(stream_tx, addr))
             .await
             .map_err(|_| {
                 Status::new(
@@ -130,6 +133,15 @@ pub struct Worker {
     addr: SocketAddr,
 }
 
+#[derive(Debug)]
+pub struct Controller {
+    /// This channel is used to communicate between the manager
+    /// and the controller
+    channel: Sender<Result<WorkerStatus, Status>>,
+    /// Remote addr of the controller
+    addr: SocketAddr,
+}
+
 impl Worker {
     fn new(id: u8, channel: Sender<Result<Workload, Status>>, addr: SocketAddr) -> Worker {
         Worker { id, channel, addr }
@@ -140,8 +152,14 @@ impl Worker {
 pub struct Manager {
     workers: Vec<Worker>,
     channel: Receiver<Event>,
-    controller_channel: Option<Sender<Result<WorkerStatus, Status>>>,
+    controller: Option<Controller>,
     worker_increment: u8,
+}
+
+impl Controller {
+    fn new(channel: Sender<Result<WorkerStatus, Status>>, addr: SocketAddr) -> Controller {
+        Controller { channel, addr }
+    }
 }
 
 impl Manager {
@@ -150,7 +168,7 @@ impl Manager {
         let mut instance = Manager {
             workers: Vec::new(),
             channel: receiver,
-            controller_channel: None,
+            controller: None,
             worker_increment: 0,
         };
         instance.run_workers_listener(sender.clone());
@@ -195,23 +213,31 @@ impl Manager {
             match e {
                 Event::Register(channel, addr) => {
                     self.worker_increment += 1;
-                    match self.workers.len() {
-                        0 => self.register(channel.clone(), addr.clone()),
-                        _ => {
-                            channel
-                                .send(Err(Status::aborted("Cluster is full")))
-                                .await?
-                        }
+                    if self.workers.is_empty() {
+                        self.register(channel.clone(), addr.clone());
+                    } else {
+                        channel
+                            .send(Err(Status::aborted("Cluster is full")))
+                            .await?;
                     }
                 }
                 Event::Schedule(workload) => {
-                    // TODO: Handle empty workers case
-                    // let worker = self.workers[0].clone();
-                    // worker.channel.send(Ok(workload.clone())).await?;
-                    info!("reveived workload: {:?}", workload);
+                    if self.workers.is_empty() {
+                        error!(
+                            "No worker are registered to schedule the workload: {:?}",
+                            workload
+                        );
+                    } else {
+                        let worker = &self.workers[0];
+                        worker.channel.send(Ok(workload.clone())).await?;
+                        info!(
+                            "A workload was sent to the worker {}: {:?}",
+                            worker.id, workload
+                        );
+                    }
                 }
-                Event::Subscribe(channel) => {
-                    self.controller_channel = Some(channel.clone());
+                Event::Subscribe(channel, addr) => {
+                    self.controller = Some(Controller::new(channel.clone(), addr.clone()));
                 }
             }
         }

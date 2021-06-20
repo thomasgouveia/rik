@@ -27,7 +27,7 @@ pub mod controller {
 pub enum Event {
     Register(Sender<WorkloadChannelType>, SocketAddr),
     Schedule(Workload),
-    Subscribe(Sender<Result<WorkerStatus, Status>>),
+    Subscribe(Sender<Result<WorkerStatus, Status>>, SocketAddr),
 }
 
 #[derive(Debug)]
