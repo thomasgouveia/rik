@@ -154,7 +154,7 @@ impl Manager {
             worker_increment: 0,
         };
         instance.run_workers_listener(sender.clone());
-        instance.run_controller_listener(sender.clone());
+        instance.run_controllers_listener(sender.clone());
         let channel_listener = instance.listen();
         channel_listener.await?;
         Ok(instance)
@@ -175,7 +175,7 @@ impl Manager {
         });
     }
 
-    fn run_controller_listener(&self, sender: Sender<Event>) {
+    fn run_controllers_listener(&self, sender: Sender<Event>) {
         let server = ControllerServer::new(ControllerService { sender });
         tokio::spawn(async move {
             let server = Server::builder()
@@ -213,7 +213,6 @@ impl Manager {
                 Event::Subscribe(channel) => {
                     self.controller_channel = Some(channel.clone());
                 }
-                kind => info!("Received event : {:#?}", kind),
             }
         }
         Ok(())

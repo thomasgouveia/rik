@@ -1,4 +1,4 @@
-use common::Workload;
+use common::{WorkerStatus, Workload};
 use std::error::Error;
 use std::fmt;
 use std::net::SocketAddr;
