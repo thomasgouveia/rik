@@ -1,15 +1,17 @@
-use tonic::{transport::Server, Request, Response, Status, Code};
-use common::{ResourceStatus, WorkerMetric, InstanceMetric, WorkerStatus, Workload};
-use worker::worker_server::{Worker as WorkerClient, WorkerServer};
-use protobuf::well_known_types::Empty;
-use tokio_stream::wrappers::ReceiverStream;
-use tokio::sync::mpsc::{channel, Sender, Receiver};
-use log::{info, error};
+use common::{InstanceMetric, ResourceStatus, WorkerMetric, WorkerStatus, Workload};
+use controller::controller_server::{Controller, ControllerServer};
 use env_logger::Env;
-use std::sync::{Arc};
+use log::{error, info};
+use protobuf::well_known_types::Empty;
+use std::default::Default;
 use std::net::SocketAddr;
-use tokio_stream::StreamExt;
+use std::sync::Arc;
 use tokio::io::AsyncReadExt;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::StreamExt;
+use tonic::{transport::Server, Code, Request, Response, Status};
+use worker::worker_server::{Worker as WorkerClient, WorkerServer};
 
 // Common is needed to be included, as controller & worker
 // are using it
@@ -42,24 +44,29 @@ impl WorkerClient for WorkerService {
         _request: Request<()>,
     ) -> Result<Response<Self::RegisterStream>, Status> {
         // Streaming channel that sends workloads
-        let (stream_tx, stream_rx) = channel::<Result<Workload, tonic::Status>>(1024);
-        let addr = _request.remote_addr()
-            .expect("No remote address found");
+        let (stream_tx, stream_rx) = channel::<Result<Workload, Status>>(1024);
+        let addr = _request.remote_addr().expect("No remote address found");
 
-        self.sender.send(Event::Register(stream_tx, addr))
+        self.sender
+            .send(Event::Register(stream_tx, addr))
             .await
-            .map_err(|_| Status::new(Code::Unavailable, "Worker service cannot process your request"))?;
+            .map_err(|_| {
+                Status::new(
+                    Code::Unavailable,
+                    "Worker service cannot process your request",
+                )
+            })?;
 
         Ok(Response::new(ReceiverStream::new(stream_rx)))
     }
 
     /**
-    * For now we can only fetch a single status updates, as `try_next`
-    * isn't blocking! :(
-    * We should make this update of data blocking, so we can receive any status
-    * update
-    *
-    **/
+     * For now we can only fetch a single status updates, as `try_next`
+     * isn't blocking! :(
+     * We should make this update of data blocking, so we can receive any status
+     * update
+     *
+     **/
     async fn send_status_updates(
         &self,
         _request: Request<tonic::Streaming<WorkerStatus>>,
@@ -75,9 +82,54 @@ impl WorkerClient for WorkerService {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ControllerService {
+    // Channel used in order to communicate with the Manager
+    sender: Sender<Event>,
+}
+
+#[tonic::async_trait]
+impl Controller for ControllerService {
+    async fn schedule_instance(&self, _request: Request<Workload>) -> Result<Response<()>, Status> {
+        self.sender
+            .send(Event::Schedule(_request.get_ref().clone()))
+            .await
+            .map_err(|_| {
+                Status::new(
+                    Code::Unavailable,
+                    "Controller service cannot process your request",
+                )
+            })?;
+
+        Ok(Response::new(()))
+    }
+
+    type GetStatusUpdatesStream = ReceiverStream<Result<WorkerStatus, Status>>;
+
+    async fn get_status_updates(
+        &self,
+        _request: Request<()>,
+    ) -> Result<Response<Self::GetStatusUpdatesStream>, Status> {
+        let (stream_tx, stream_rx) = channel::<Result<WorkerStatus, Status>>(1024);
+        self.sender
+            .send(Event::Subscribe(stream_tx))
+            .await
+            .map_err(|_| {
+                Status::new(
+                    Code::Unavailable,
+                    "Controller service cannot process your request",
+                )
+            })?;
+
+        Ok(Response::new(ReceiverStream::new(stream_rx)))
+    }
+}
+
 #[derive(Debug)]
 pub enum Event {
     Register(Sender<Result<Workload, Status>>, SocketAddr),
+    Schedule(Workload),
+    Subscribe(Sender<Result<WorkerStatus, Status>>),
 }
 
 #[derive(Debug)]
@@ -104,33 +156,49 @@ pub struct Worker {
 struct Manager {
     workers: Vec<Arc<Worker>>,
     channel: Receiver<Event>,
+    controller_channel: Option<Sender<Result<WorkerStatus, Status>>>,
     worker_increment: u8,
 }
 
 impl Manager {
     async fn run() -> Result<Manager, Box<dyn std::error::Error>> {
-        let (sender, mut receiver) = channel::<Event>(1024);
+        let (sender, receiver) = channel::<Event>(1024);
         let mut instance = Manager {
             workers: Vec::new(),
             channel: receiver,
+            controller_channel: None,
             worker_increment: 0,
         };
-        instance.run_worker_listener(sender);
+        instance.run_worker_listener(sender.clone());
+        instance.run_controller_listener(sender.clone());
         let channel_listener = instance.listen();
         channel_listener.await?;
         Ok(instance)
     }
 
     fn run_worker_listener(&self, sender: Sender<Event>) {
-        let server = WorkerServer::new(WorkerService {
-            sender,
-        });
+        let server = WorkerServer::new(WorkerService { sender });
         tokio::spawn(async move {
-            let server =  Server::builder()
+            let server = Server::builder()
                 .add_service(server)
                 .serve("127.0.0.1:8081".parse().unwrap());
 
             info!("Worker gRPC listening thread up");
+
+            if let Err(e) = server.await {
+                error!("{}", e);
+            }
+        });
+    }
+
+    fn run_controller_listener(&self, sender: Sender<Event>) {
+        let server = ControllerServer::new(ControllerService { sender });
+        tokio::spawn(async move {
+            let server = Server::builder()
+                .add_service(server)
+                .serve("127.0.0.1:10000".parse().unwrap());
+
+            info!("Controller gRPC listening thread up");
 
             if let Err(e) = server.await {
                 error!("{}", e);
@@ -148,18 +216,35 @@ impl Manager {
                         channel: channel.clone(),
                         addr: addr.clone(),
                     });
-                    info!("Worker with ID {} is now registered, ip: {}", worker.id, worker.addr);
+                    info!(
+                        "Worker with ID {} is now registered, ip: {}",
+                        worker.id, worker.addr
+                    );
 
-                    worker.channel.send(Ok(Workload {
-                        instance_id: String::from("testing"),
-                        definition: String::from("{}"),
-                    })).await?;
-                    worker.channel.send(Err(Status::aborted("Cannot register now"))).await?;
+                    worker
+                        .channel
+                        .send(Ok(Workload {
+                            instance_id: String::from("testing"),
+                            definition: String::from("{}"),
+                        }))
+                        .await?;
+                    worker
+                        .channel
+                        .send(Err(Status::aborted("Cannot register now")))
+                        .await?;
                     self.workers.push(worker);
-                },
-                kind => info!("Received event : {:#?}", kind),
+                }
+                Event::Schedule(workload) => {
+                    // TODO: Handle empty workers case
+                    // let worker = self.workers[0].clone();
+                    // worker.channel.send(Ok(workload.clone())).await?;
+                    info!("reveived workload: {:?}", workload);
+                }
+                Event::Subscribe(channel) => {
+                    self.controller_channel = Some(channel.clone());
+                }
             }
-        };
+        }
         Ok(())
     }
 }
