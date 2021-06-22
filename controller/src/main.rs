@@ -1,16 +1,16 @@
 mod api;
-mod tools;
+mod logger;
 
 use std::sync::mpsc::channel;
 use std::thread;
 
-use api::{external::ExternalAPI, internal::InternalAPI};
-use tools::{Logger, Logging};
+use api::{external::ExternalAPI, internal::InternalAPI, ApiPipe};
+use logger::{Logger, Logging};
 
 fn main() {
     let (logging_sender, logging_receiver) = channel::<Logging>();
-    let (internal_sender, internal_receiver) = channel::<String>();
-    let (external_sender, external_receiver) = channel::<String>();
+    let (internal_sender, internal_receiver) = channel::<ApiPipe>();
+    let (external_sender, external_receiver) = channel::<ApiPipe>();
 
     let logger = Logger::new(logging_receiver, String::from("Main"));
 

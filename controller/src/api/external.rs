@@ -1,4 +1,5 @@
-use crate::tools::{LogType, Logging};
+use crate::api::{ApiPipe, CRUD};
+use crate::logger::{LogType, Logging};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
@@ -6,15 +7,15 @@ use tiny_http::{Request, Server};
 
 pub struct ExternalAPI {
     logger: Sender<Logging>,
-    internal_sender: Sender<String>,
-    external_receiver: Receiver<String>,
+    internal_sender: Sender<ApiPipe>,
+    external_receiver: Receiver<ApiPipe>,
 }
 
 impl ExternalAPI {
     pub fn new(
         logger_sender: Sender<Logging>,
-        internal_sender: Sender<String>,
-        external_receiver: Receiver<String>,
+        internal_sender: Sender<ApiPipe>,
+        external_receiver: Receiver<ApiPipe>,
     ) -> ExternalAPI {
         ExternalAPI {
             logger: logger_sender,
@@ -24,14 +25,11 @@ impl ExternalAPI {
     }
 
     pub fn run(&self) {
-        self.logger
-            .send(Logging {
-                message: String::from("Server running..."),
-                log_type: LogType::Log,
-            })
-            .unwrap();
         self.internal_sender
-            .send(String::from("From External to Internal"))
+            .send(ApiPipe {
+                action: CRUD::Delete,
+                workload_id: 1,
+            })
             .unwrap();
         self.run_server();
         self.listen_notification();
@@ -44,7 +42,9 @@ impl ExternalAPI {
     }
 
     fn run_server(&self) {
-        let server = Server::http("127.0.0.1:5000").unwrap();
+        let host = String::from("127.0.0.1");
+        let port = 5000;
+        let server = Server::http(format!("{}:{}", host, port)).unwrap();
         let server = Arc::new(server);
         let mut guards = Vec::with_capacity(4);
 
@@ -54,9 +54,16 @@ impl ExternalAPI {
             let guard = thread::spawn(move || loop {
                 let rq: Request = server.recv().unwrap();
                 println!("{}", rq.method());
+                // TODO handle request + router
             });
 
             guards.push(guard);
         }
+        self.logger
+            .send(Logging {
+                message: format!("Server running on http://{}:{}", host, port),
+                log_type: LogType::Log,
+            })
+            .unwrap();
     }
 }

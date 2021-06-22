@@ -1,5 +1,7 @@
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use std::sync::mpsc::Receiver;
+
+use colored::{ColoredString, Colorize};
 
 #[allow(dead_code)]
 pub enum LogType {
@@ -34,23 +36,24 @@ impl Logger {
     }
 
     fn log(&self, msg: &str) {
-        let now: DateTime<Utc> = Utc::now();
-        println!("[Rik] - {} [{}] {}", now, self.name, msg);
+        self.print(msg, "LOG  ".green());
     }
 
     fn error(&self, msg: &str) {
-        let now: DateTime<Utc> = Utc::now();
-        println!("[Rik] - {} [{}] {}", now, self.name, msg);
+        self.print(msg, "ERROR".red());
     }
 
     fn warn(&self, msg: &str) {
-        let now: DateTime<Utc> = Utc::now();
-        println!("[Rik] - {} [{}] {}", now, self.name, msg);
+        self.print(msg, "WARN ".yellow());
     }
 
     fn debug(&self, msg: &str) {
-        let now: DateTime<Utc> = Utc::now();
-        println!("[Rik] - {} [{}] {}", now, self.name, msg);
+        self.print(msg, "DEBUG".white());
+    }
+
+    fn print(&self, msg: &str, log_type: ColoredString) {
+        let now = Utc::now().format("%Y-%m-%d %H:%M:%S");
+        println!("{} [Rik] [{}] - {} - {}", log_type, self.name, now, msg);
     }
 }
 
