@@ -35,3 +35,46 @@ pub enum SchedulerError {
     ClusterFull,
     RegistrationFailed(String),
 }
+
+
+#[derive(Debug)]
+pub struct Controller {
+    /// This channel is used to communicate between the manager
+    /// and the controller
+    channel: Sender<Result<WorkerStatus, Status>>,
+    /// Remote addr of the controller
+    addr: SocketAddr,
+}
+
+impl Controller {
+    pub fn new(channel: Sender<Result<WorkerStatus, Status>>, addr: SocketAddr) -> Controller {
+        Controller { channel, addr }
+    }
+}
+
+#[derive(Debug)]
+pub struct Worker {
+    /// Unique ID for the worker, only used internally for now
+    pub id: u8,
+    /// This channel is used to communicate between the manager
+    /// and the worker instance
+    /// # Examples
+    ///
+    /// The following code is used in order to schedule an instance
+    /// ```
+    /// worker.channel.send(Ok(Workload {
+    ///     instance_id: String::from("testing"),
+    ///     definition: String::from("{}"),
+    /// })).await?;
+    /// ```
+    // TODO: Create a trait to send data
+    pub channel: Sender<Result<Workload, Status>>,
+    /// Remote addr of the worker
+    pub addr: SocketAddr,
+}
+
+impl Worker {
+    pub fn new(id: u8, channel: Sender<Result<Workload, Status>>, addr: SocketAddr) -> Worker {
+        Worker { id, channel, addr }
+    }
+}

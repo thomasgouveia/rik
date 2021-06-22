@@ -5,6 +5,7 @@ use rik_scheduler::common::{WorkerStatus, Workload};
 use rik_scheduler::controller::controller_server::{
     Controller as ControllerClient, ControllerServer,
 };
+use rik_scheduler::{Controller, Worker};
 use rik_scheduler::worker::worker_server::{Worker as WorkerClient, WorkerServer};
 use rik_scheduler::{Event, SchedulerError, WorkloadChannelType};
 use std::default::Default;
@@ -15,7 +16,7 @@ use tokio_stream::StreamExt;
 use tonic::{transport::Server, Code, Request, Response, Status};
 
 #[derive(Debug, Clone)]
-pub struct WorkerService {
+pub struct GRPCService {
     /// Channel used in order to communicate with the main thread
     /// In the case the worker doesn't know its ID yet, put 0 in the first
     /// item of the tuple
@@ -23,7 +24,7 @@ pub struct WorkerService {
 }
 
 #[tonic::async_trait]
-impl WorkerClient for WorkerService {
+impl WorkerClient for GRPCService {
     type RegisterStream = ReceiverStream<WorkloadChannelType>;
 
     async fn register(
@@ -69,14 +70,8 @@ impl WorkerClient for WorkerService {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ControllerService {
-    // Channel used in order to communicate with the Manager
-    sender: Sender<Event>,
-}
-
 #[tonic::async_trait]
-impl ControllerClient for ControllerService {
+impl ControllerClient for GRPCService {
     async fn schedule_instance(&self, _request: Request<Workload>) -> Result<Response<()>, Status> {
         self.sender
             .send(Event::Schedule(_request.get_ref().clone()))
@@ -114,41 +109,6 @@ impl ControllerClient for ControllerService {
 }
 
 #[derive(Debug)]
-pub struct Worker {
-    /// Unique ID for the worker, only used internally for now
-    id: u8,
-    /// This channel is used to communicate between the manager
-    /// and the worker instance
-    /// # Examples
-    ///
-    /// The following code is used in order to schedule an instance
-    /// ```
-    /// worker.channel.send(Ok(Workload {
-    ///     instance_id: String::from("testing"),
-    ///     definition: String::from("{}"),
-    /// })).await?;
-    /// ```
-    channel: Sender<Result<Workload, Status>>,
-    /// Remote addr of the worker
-    addr: SocketAddr,
-}
-
-#[derive(Debug)]
-pub struct Controller {
-    /// This channel is used to communicate between the manager
-    /// and the controller
-    channel: Sender<Result<WorkerStatus, Status>>,
-    /// Remote addr of the controller
-    addr: SocketAddr,
-}
-
-impl Worker {
-    fn new(id: u8, channel: Sender<Result<Workload, Status>>, addr: SocketAddr) -> Worker {
-        Worker { id, channel, addr }
-    }
-}
-
-#[derive(Debug)]
 pub struct Manager {
     workers: Vec<Worker>,
     channel: Receiver<Event>,
@@ -156,11 +116,6 @@ pub struct Manager {
     worker_increment: u8,
 }
 
-impl Controller {
-    fn new(channel: Sender<Result<WorkerStatus, Status>>, addr: SocketAddr) -> Controller {
-        Controller { channel, addr }
-    }
-}
 
 impl Manager {
     async fn run() -> Result<Manager, Box<dyn std::error::Error>> {
@@ -179,7 +134,7 @@ impl Manager {
     }
 
     fn run_workers_listener(&self, sender: Sender<Event>) {
-        let server = WorkerServer::new(WorkerService { sender });
+        let server = WorkerServer::new(GRPCService { sender });
         tokio::spawn(async move {
             let server = Server::builder()
                 .add_service(server)
@@ -194,7 +149,7 @@ impl Manager {
     }
 
     fn run_controllers_listener(&self, sender: Sender<Event>) {
-        let server = ControllerServer::new(ControllerService { sender });
+        let server = ControllerServer::new(GRPCService { sender });
         tokio::spawn(async move {
             let server = Server::builder()
                 .add_service(server)
