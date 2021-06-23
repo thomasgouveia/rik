@@ -9,6 +9,12 @@ pub enum CRUD {
     Delete,
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
+pub enum RikError {
+    IoError(std::io::Error),
+}
+
 pub struct ApiPipe {
     action: CRUD,
     workload_id: usize,

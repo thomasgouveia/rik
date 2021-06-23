@@ -1,11 +1,16 @@
 use route_recognizer;
 use std::io;
 
+use crate::api;
+
 mod instance;
 mod tenant;
 mod workload;
 
-type Handler = fn(&mut tiny_http::Request, &route_recognizer::Params);
+type Handler = fn(
+    &mut tiny_http::Request,
+    &route_recognizer::Params,
+) -> Result<tiny_http::Response<io::Empty>, api::RikError>;
 
 pub struct Router {
     routes: Vec<(tiny_http::Method, route_recognizer::Router<Handler>)>,
@@ -17,7 +22,7 @@ impl Router {
         let mut post = route_recognizer::Router::<Handler>::new();
 
         get.add("/instance", instance::get);
-        post.add("/instance", instance::create);
+        post.add("/instance", instance::create as Handler);
 
         Router {
             routes: vec![
@@ -31,16 +36,12 @@ impl Router {
         &self,
         request: &mut tiny_http::Request,
     ) -> Option<tiny_http::Response<io::Empty>> {
-        println!("Handle, {}", request.method());
         self.routes
             .iter()
             .find(|&&(ref method, _)| method == request.method())
             .and_then(|&(_, ref routes)| {
                 if let Ok(res) = routes.recognize(request.url()) {
-                    res.handler();
-                    Some(tiny_http::Response::new_empty(tiny_http::StatusCode::from(
-                        201,
-                    )))
+                    Some(res.handler()(request, &res.params()).unwrap())
                 } else {
                     None
                 }
