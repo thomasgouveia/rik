@@ -1,23 +1,25 @@
+mod routes;
+
 use crate::api::{ApiPipe, CRUD};
 use crate::logger::{LogType, Logging};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
-use tiny_http::{Request, Server};
+use tiny_http::{Request, Server as TinyServer};
 
-pub struct ExternalAPI {
+pub struct Server {
     logger: Sender<Logging>,
     internal_sender: Sender<ApiPipe>,
     external_receiver: Receiver<ApiPipe>,
 }
 
-impl ExternalAPI {
+impl Server {
     pub fn new(
         logger_sender: Sender<Logging>,
         internal_sender: Sender<ApiPipe>,
         external_receiver: Receiver<ApiPipe>,
-    ) -> ExternalAPI {
-        ExternalAPI {
+    ) -> Server {
+        Server {
             logger: logger_sender,
             internal_sender,
             external_receiver,
@@ -42,9 +44,9 @@ impl ExternalAPI {
     }
 
     fn run_server(&self) {
-        let host = String::from("127.0.0.1");
+        let host = String::from("0.0.0.0");
         let port = 5000;
-        let server = Server::http(format!("{}:{}", host, port)).unwrap();
+        let server = TinyServer::http(format!("{}:{}", host, port)).unwrap();
         let server = Arc::new(server);
         let mut guards = Vec::with_capacity(4);
 
@@ -52,9 +54,16 @@ impl ExternalAPI {
             let server = server.clone();
 
             let guard = thread::spawn(move || loop {
-                let rq: Request = server.recv().unwrap();
-                println!("{}", rq.method());
-                // TODO handle request + router
+                let router = routes::Router::new();
+                let mut rq: Request = server.recv().unwrap();
+
+                if let Some(res) = router.handle(&mut rq) {
+                    println!("OKkkkk {:?}", res.status_code());
+                    rq.respond(res).unwrap();
+                }
+
+                // println!("{}", rq.method());
+                // // TODO handle request + router
             });
 
             guards.push(guard);

@@ -4,7 +4,7 @@ mod logger;
 use std::sync::mpsc::channel;
 use std::thread;
 
-use api::{external::ExternalAPI, internal::InternalAPI, ApiPipe};
+use api::{external, internal::InternalAPI, ApiPipe};
 use logger::{Logger, Logging};
 
 fn main() {
@@ -19,7 +19,7 @@ fn main() {
         external_sender.clone(),
         internal_receiver,
     );
-    let external_api = ExternalAPI::new(
+    let external_api = external::Server::new(
         logging_sender.clone(),
         internal_sender.clone(),
         external_receiver,
