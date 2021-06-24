@@ -1,25 +1,28 @@
 mod routes;
 
-use crate::api::{ApiPipe, CRUD};
-use crate::logger::{LogType, Logging};
+use crate::api::{ApiChannel, CRUD};
+use crate::logger::{LogType, LoggingChannel};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 use tiny_http::{Request, Server as TinyServer};
 
+use rusqlite::NO_PARAMS;
+use rusqlite::{Connection, Result};
+
 use colored::Colorize;
 
 pub struct Server {
-    logger: Sender<Logging>,
-    internal_sender: Sender<ApiPipe>,
-    external_receiver: Receiver<ApiPipe>,
+    logger: Sender<LoggingChannel>,
+    internal_sender: Sender<ApiChannel>,
+    external_receiver: Receiver<ApiChannel>,
 }
 
 impl Server {
     pub fn new(
-        logger_sender: Sender<Logging>,
-        internal_sender: Sender<ApiPipe>,
-        external_receiver: Receiver<ApiPipe>,
+        logger_sender: Sender<LoggingChannel>,
+        internal_sender: Sender<ApiChannel>,
+        external_receiver: Receiver<ApiChannel>,
     ) -> Server {
         Server {
             logger: logger_sender,
@@ -30,7 +33,7 @@ impl Server {
 
     pub fn run(&self) {
         self.internal_sender
-            .send(ApiPipe {
+            .send(ApiChannel {
                 action: CRUD::Delete,
                 workload_id: 1,
             })
@@ -59,6 +62,8 @@ impl Server {
                 let router = routes::Router::new();
                 let mut rq: Request = server.recv().unwrap();
 
+                let connection = Connection::open("rick.db");
+
                 if let Some(res) = router.handle(&mut rq) {
                     rq.respond(res).unwrap();
                 }
@@ -67,7 +72,7 @@ impl Server {
             guards.push(guard);
         }
         self.logger
-            .send(Logging {
+            .send(LoggingChannel {
                 message: format!(
                     "{}",
                     format!("Server running on http://{}:{}", host, port).green()

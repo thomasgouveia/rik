@@ -15,11 +15,11 @@ pub enum RikError {
     IoError(std::io::Error),
 }
 
-pub struct ApiPipe {
+pub struct ApiChannel {
     action: CRUD,
     workload_id: usize,
 }
-impl fmt::Display for ApiPipe {
+impl fmt::Display for ApiChannel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,

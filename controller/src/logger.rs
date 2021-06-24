@@ -12,12 +12,12 @@ pub enum LogType {
 }
 
 pub struct Logger {
-    receiver: Receiver<Logging>,
+    receiver: Receiver<LoggingChannel>,
     name: String,
 }
 
 impl Logger {
-    pub fn new(logger_receiver: Receiver<Logging>, name: String) -> Logger {
+    pub fn new(logger_receiver: Receiver<LoggingChannel>, name: String) -> Logger {
         Logger {
             receiver: logger_receiver,
             name,
@@ -57,7 +57,7 @@ impl Logger {
     }
 }
 
-pub struct Logging {
+pub struct LoggingChannel {
     pub message: String,
     pub log_type: LogType,
 }
