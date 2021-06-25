@@ -1,4 +1,5 @@
 mod api;
+mod database;
 mod logger;
 
 use std::sync::mpsc::channel;

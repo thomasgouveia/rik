@@ -11,4 +11,9 @@ tiny_http = "0.8.2"
 chrono = "0.4"
 colored = "2"
 route-recognizer = "0.3.0"
-rusqlite = "0.25.3"
+serde = { version = "1.0.126", features = ["derive"] }
+serde_json = "1.0.64"
+
+[dependencies.rusqlite]
+version = "0.25.1"
+features = ["bundled"]

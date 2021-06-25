@@ -1,5 +1,7 @@
 pub mod external;
 pub mod internal;
+pub mod types;
+
 use std::fmt;
 
 #[allow(dead_code)]

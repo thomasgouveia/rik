@@ -1,16 +1,20 @@
 mod routes;
 
 use crate::api::{ApiChannel, CRUD};
+use crate::database::RickDataBase;
 use crate::logger::{LogType, LoggingChannel};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 use tiny_http::{Request, Server as TinyServer};
 
-use rusqlite::NO_PARAMS;
-use rusqlite::{Connection, Result};
-
 use colored::Colorize;
+
+#[derive(Debug)]
+struct Cat {
+    name: String,
+    color: String,
+}
 
 pub struct Server {
     logger: Sender<LoggingChannel>,
@@ -53,20 +57,29 @@ impl Server {
         let port = 5000;
         let server = TinyServer::http(format!("{}:{}", host, port)).unwrap();
         let server = Arc::new(server);
+        let db = RickDataBase::new(String::from("rick"));
+        db.init_tables().unwrap();
+
         let mut guards = Vec::with_capacity(4);
 
         for _ in 0..4 {
             let server = server.clone();
+            let db = db.clone();
+            let internal_sender = self.internal_sender.clone();
+            let logger = self.logger.clone();
 
             let guard = thread::spawn(move || loop {
                 let router = routes::Router::new();
-                let mut rq: Request = server.recv().unwrap();
+                let connection = db.open().unwrap();
 
-                let connection = Connection::open("rick.db");
+                let mut req: Request = server.recv().unwrap();
 
-                if let Some(res) = router.handle(&mut rq) {
-                    rq.respond(res).unwrap();
+                if let Some(res) = router.handle(&mut req, &connection, &internal_sender, &logger) {
+                    req.respond(res).unwrap();
+                    continue;
                 }
+                req.respond(tiny_http::Response::empty(tiny_http::StatusCode::from(404)))
+                    .unwrap();
             });
 
             guards.push(guard);
