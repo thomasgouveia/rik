@@ -3,19 +3,19 @@ use crate::logger::{LogType, LoggingChannel};
 use std::sync::mpsc::{Receiver, Sender};
 
 #[allow(dead_code)]
-pub struct InternalAPI {
+pub struct Server {
     logger: Sender<LoggingChannel>,
     external_sender: Sender<ApiChannel>,
     internal_receiver: Receiver<ApiChannel>,
 }
 
-impl InternalAPI {
+impl Server {
     pub fn new(
         logger_sender: Sender<LoggingChannel>,
         external_sender: Sender<ApiChannel>,
         internal_receiver: Receiver<ApiChannel>,
-    ) -> InternalAPI {
-        InternalAPI {
+    ) -> Server {
+        Server {
             logger: logger_sender,
             external_sender,
             internal_receiver,
