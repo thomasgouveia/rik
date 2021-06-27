@@ -5,13 +5,9 @@ authors = ["Protocole <burgoni.alexandre@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
-prost = "0.7.0"
 tonic = "0.4.3"
-protobuf = { version = "2", features = ["with-bytes"] }
 tokio = { version = "1.6.1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 tokio-stream = "0.1.6"
 env_logger = "0.8.3"
 log = "0.4.14"
-
-[build-dependencies]
-tonic-build = "0.4.2"
+proto = { path = "../proto", version="0.1.0" }
