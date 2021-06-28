@@ -39,7 +39,8 @@ impl Server {
         self.internal_sender
             .send(ApiChannel {
                 action: CRUD::Delete,
-                workload_id: 1,
+                workload_id: Some(1),
+                instance_id: Some(1),
             })
             .unwrap();
         self.run_server();

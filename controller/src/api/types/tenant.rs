@@ -5,13 +5,9 @@ use std::fmt;
 pub struct Tenant {
     pub id: usize,
     pub name: String,
+    pub value: String,
 }
 
-impl Tenant {
-    pub fn new(id: usize, name: String) -> Tenant {
-        Tenant { id, name }
-    }
-}
 impl fmt::Display for Tenant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Id: {}, Name: {}", self.id, self.name)

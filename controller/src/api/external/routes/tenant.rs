@@ -5,9 +5,10 @@ use std::str::FromStr;
 use std::sync::mpsc::Sender;
 
 use crate::api;
+use crate::api::types::element::OnlyId;
 use crate::api::types::tenant::Tenant;
 use crate::api::ApiChannel;
-use crate::database::RickTenantRepository;
+use crate::database::RickRepository;
 use crate::logger::{LogType, LoggingChannel};
 
 pub fn get(
@@ -17,12 +18,12 @@ pub fn get(
     _: &Sender<ApiChannel>,
     logger: &Sender<LoggingChannel>,
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
-    if let Ok(tenants) = RickTenantRepository::find_all_tenant(connection) {
+    if let Ok(tenants) = RickRepository::find_all(connection, "/tenant") {
         let tenants_json = serde_json::to_string(&tenants).unwrap();
         logger
             .send(LoggingChannel {
-                message: String::from("Cannot find tenant"),
-                log_type: LogType::Error,
+                message: String::from("Tenant found"),
+                log_type: LogType::Log,
             })
             .unwrap();
         Ok(tiny_http::Response::from_string(tenants_json)
@@ -45,7 +46,7 @@ pub fn create(
     req.as_reader().read_to_string(&mut content).unwrap();
     let tenant: Tenant = serde_json::from_str(&content).unwrap();
 
-    if let Ok(()) = RickTenantRepository::create_tenant(connection, &tenant) {
+    if let Ok(()) = RickRepository::insert(connection, &tenant.name, &tenant.value) {
         logger
             .send(LoggingChannel {
                 message: String::from("Create tenant"),
@@ -76,10 +77,10 @@ pub fn delete(
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
     let mut content = String::new();
     req.as_reader().read_to_string(&mut content).unwrap();
-    let tenant: Tenant = serde_json::from_str(&content).unwrap();
+    let OnlyId { id: delete_id } = serde_json::from_str(&content).unwrap();
 
-    if let Ok(tenant) = RickTenantRepository::find_one_tenant(connection, tenant.id) {
-        RickTenantRepository::delete_tenants(connection, tenant.id).unwrap();
+    if let Ok(tenant) = RickRepository::find_one(connection, delete_id, "/tenant") {
+        RickRepository::delete(connection, tenant.id).unwrap();
 
         logger
             .send(LoggingChannel {
@@ -91,12 +92,12 @@ pub fn delete(
     } else {
         logger
             .send(LoggingChannel {
-                message: String::from(format!("Tenant id {} not found", tenant.id)),
+                message: String::from(format!("Tenant id {} not found", delete_id)),
                 log_type: LogType::Error,
             })
             .unwrap();
         Ok(
-            tiny_http::Response::from_string(format!("Tenant id {} not found", tenant.id))
+            tiny_http::Response::from_string(format!("Tenant id {} not found", delete_id))
                 .with_status_code(tiny_http::StatusCode::from(404)),
         )
     }

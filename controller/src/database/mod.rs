@@ -1,8 +1,6 @@
+use crate::api::types::element::Element;
 use rusqlite::{params, Connection, Result};
 use std::sync::Arc;
-
-use crate::api::types::tenant::Tenant;
-
 pub struct RickDataBase {
     name: String,
 }
@@ -15,19 +13,15 @@ impl RickDataBase {
 
     pub fn init_tables(&self) -> Result<()> {
         let connection = self.open()?;
-        connection.execute(
-            "CREATE TABLE IF NOT EXISTS tenant (
-                id              INTEGER PRIMARY KEY,
-                name            TEXT NOT NULL
-            )",
-            [],
-        )?;
-        connection.execute(
-            "CREATE TABLE IF NOT EXISTS workload (
-                id              INTEGER PRIMARY KEY,
-                name            TEXT NOT NULL
-            )",
-            [],
+        // only work with sqlite for now
+        connection.execute_batch(
+            "CREATE TABLE IF NOT EXISTS cluster (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                name            TEXT NOT NULL,
+                value           BLOB NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS cluster_name_index ON cluster (name);
+            CREATE INDEX IF NOT EXISTS cluster_name_id_index ON cluster (name,id);",
         )?;
         Ok(())
     }
@@ -42,46 +36,54 @@ impl RickDataBase {
     }
 }
 
-pub struct RickWorkloadRepository {}
-#[allow(dead_code)]
-impl RickWorkloadRepository {
-    pub fn create_workload(connection: &Connection, name: &str) -> Result<()> {
-        connection.execute("INSERT INTO workload (name) VALUES (?1)", params![name])?;
-        Ok(())
-    }
-}
-
-pub struct RickTenantRepository {}
-impl RickTenantRepository {
-    pub fn create_tenant(connection: &Connection, tenant: &Tenant) -> Result<()> {
-        connection.execute(
-            "INSERT INTO tenant (name) VALUES (?1)",
-            params![tenant.name],
-        )?;
+pub struct RickRepository {}
+impl RickRepository {
+    pub fn insert(connection: &Connection, name: &str, value: &str) -> Result<()> {
+        connection
+            .execute(
+                "INSERT INTO cluster (name, value) VALUES (?1, ?2)",
+                params![name, value],
+            )
+            .unwrap();
         Ok(())
     }
 
-    pub fn find_all_tenant(connection: &Connection) -> Result<Vec<Tenant>> {
-        let mut stmt = connection.prepare("SELECT id, name FROM tenant")?;
-        let tenants_iter = stmt.query_map([], |row| Ok(Tenant::new(row.get(0)?, row.get(1)?)))?;
-
-        let mut tenants: Vec<Tenant> = Vec::new();
-        for tenant in tenants_iter {
-            tenants.push(tenant?);
-        }
-        Ok(tenants)
-    }
-
-    pub fn delete_tenants(connection: &Connection, id: usize) -> Result<()> {
-        connection.execute("DELETE FROM tenant WHERE id = (?1)", params![id])?;
+    pub fn delete(connection: &Connection, id: usize) -> Result<()> {
+        connection.execute("DELETE FROM cluster WHERE id = (?1)", params![id])?;
         Ok(())
     }
 
-    pub fn find_one_tenant(connection: &Connection, id: usize) -> Result<Tenant> {
-        let mut stmt = connection.prepare("SELECT id, name FROM tenant WHERE id = (?1)")?;
-        match stmt.query_row(params![id], |row| Ok(Tenant::new(row.get(0)?, row.get(1)?))) {
-            Ok(tenant) => Ok(tenant),
+    pub fn find_one(connection: &Connection, id: usize, element_type: &str) -> Result<Element> {
+        let mut stmt = connection.prepare(&format!(
+            "SELECT id, name, value FROM cluster WHERE id = {} AND name LIKE '{}%'",
+            id, element_type
+        ))?;
+        match stmt.query_row([], |row| {
+            Ok(Element::new(row.get(0)?, row.get(1)?, row.get(2)?))
+        }) {
+            Ok(element) => Ok(element),
             Err(err) => Err(err),
         }
+    }
+
+    // TODO: add pagination
+    pub fn find_all(connection: &Connection, element_type: &str) -> Result<Vec<Element>> {
+        let mut stmt = connection
+            .prepare(&format!(
+                "SELECT id, name, value FROM cluster WHERE name LIKE '{}%'",
+                element_type
+            ))
+            .unwrap();
+        let elements_iter = stmt
+            .query_map([], |row| {
+                Ok(Element::new(row.get(0)?, row.get(1)?, row.get(2)?))
+            })
+            .unwrap();
+
+        let mut elements: Vec<Element> = Vec::new();
+        for element in elements_iter {
+            elements.push(element?);
+        }
+        Ok(elements)
     }
 }

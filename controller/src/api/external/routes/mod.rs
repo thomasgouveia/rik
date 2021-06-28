@@ -5,7 +5,7 @@ use std::sync::mpsc::Sender;
 
 use crate::api;
 use crate::api::ApiChannel;
-use crate::logger::LoggingChannel;
+use crate::logger::{LogType, LoggingChannel};
 
 mod instance;
 mod tenant;
@@ -33,14 +33,14 @@ impl Router {
         // GET
         get.add(&format!("{}/instances.list", base_path), instance::get);
         get.add(&format!("{}/tenants.list", base_path), tenant::get);
-        get.add(&format!("{}/wokloads.list", base_path), workload::get);
+        get.add(&format!("{}/workloads.list", base_path), workload::get);
         // POST
         post.add(&format!("{}/instances.create", base_path), instance::create);
         post.add(&format!("{}/tenants.create", base_path), tenant::create);
-        post.add(&format!("{}/wokloads.create", base_path), workload::create);
+        post.add(&format!("{}/workloads.create", base_path), workload::create);
         post.add(&format!("{}/instances.delete", base_path), instance::delete);
         post.add(&format!("{}/tenants.delete", base_path), tenant::delete);
-        post.add(&format!("{}/wokloads.delete", base_path), workload::delete);
+        post.add(&format!("{}/workloads.delete", base_path), workload::delete);
 
         Router {
             routes: vec![
@@ -64,7 +64,16 @@ impl Router {
                 if let Ok(res) = routes.recognize(request.url()) {
                     Some(
                         res.handler()(request, &res.params(), connection, internal_sender, logger)
-                            .unwrap(),
+                            .unwrap_or_else(|error| {
+                                logger
+                                    .send(LoggingChannel {
+                                        message: String::from(error.to_string()),
+                                        log_type: LogType::Error,
+                                    })
+                                    .unwrap();
+                                tiny_http::Response::from_string(error.to_string())
+                                    .with_status_code(tiny_http::StatusCode::from(400))
+                            }),
                     )
                 } else {
                     None

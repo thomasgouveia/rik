@@ -36,21 +36,21 @@ impl Server {
         for notification in &self.internal_receiver {
             match notification.action {
                 CRUD::Create => {
-                    // Create workload
+                    // Create instance
                     // Send workload to sheduler
                     self.logger
                         .send(LoggingChannel {
-                            message: format!("Create Workload: {}", notification.workload_id),
+                            message: format!("Create instance: {:?}", notification.workload_id),
                             log_type: LogType::Log,
                         })
                         .unwrap();
                 }
                 CRUD::Delete => {
-                    // Delete workload
+                    // Delete instance
                     // Send instruction to sheduler
                     self.logger
                         .send(LoggingChannel {
-                            message: format!("Delte Workload: {}", notification.workload_id),
+                            message: format!("Delete instance: {:?}", notification.instance_id),
                             log_type: LogType::Log,
                         })
                         .unwrap();
