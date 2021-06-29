@@ -1,29 +1,39 @@
 use route_recognizer;
 use rusqlite::Connection;
 use std::io;
+use std::str::FromStr;
 use std::sync::mpsc::Sender;
 
 use crate::api;
 use crate::api::external::services::instance::send_create_instance;
+use crate::api::types::element::OnlyId;
 use crate::api::types::instance::InstanceDefinition;
-use crate::api::ApiChannel;
+use crate::api::{ApiChannel, CRUD};
 use crate::database::RickRepository;
 use crate::logger::{LogType, LoggingChannel};
 
 pub fn get(
     _: &mut tiny_http::Request,
     _: &route_recognizer::Params,
-    _: &Connection,
+    connection: &Connection,
     _: &Sender<ApiChannel>,
     logger: &Sender<LoggingChannel>,
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
-    logger
-        .send(LoggingChannel {
-            message: String::from("Method not implemented"),
-            log_type: LogType::Warn,
-        })
-        .unwrap();
-    Ok(tiny_http::Response::from_string("").with_status_code(tiny_http::StatusCode::from(204)))
+    if let Ok(instances) = RickRepository::find_all(connection, "/instance") {
+        let instances_json = serde_json::to_string(&instances).unwrap();
+        logger
+            .send(LoggingChannel {
+                message: String::from("Instances found"),
+                log_type: LogType::Log,
+            })
+            .unwrap();
+        Ok(tiny_http::Response::from_string(instances_json)
+            .with_header(tiny_http::Header::from_str("Content-Type: application/json").unwrap())
+            .with_status_code(tiny_http::StatusCode::from(200)))
+    } else {
+        Ok(tiny_http::Response::from_string("Cannot find instances")
+            .with_status_code(tiny_http::StatusCode::from(500)))
+    }
 }
 
 pub fn create(
@@ -57,7 +67,7 @@ pub fn create(
         // Check name is not used
         if let Ok(_) = RickRepository::check_duplicate_name(
             connection,
-            &format!("/workload/default/{}", instance.get_name()),
+            &format!("/instance/%/default/{}", instance.get_name()),
         ) {
             logger
                 .send(LoggingChannel {
@@ -91,17 +101,43 @@ pub fn create(
 }
 
 pub fn delete(
-    _: &mut tiny_http::Request,
+    req: &mut tiny_http::Request,
     _: &route_recognizer::Params,
-    _: &Connection,
-    _: &Sender<ApiChannel>,
+    connection: &Connection,
+    internal_sender: &Sender<ApiChannel>,
     logger: &Sender<LoggingChannel>,
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
-    logger
-        .send(LoggingChannel {
-            message: String::from("Method not implemented"),
-            log_type: LogType::Warn,
-        })
-        .unwrap();
-    Ok(tiny_http::Response::from_string("").with_status_code(tiny_http::StatusCode::from(204)))
+    let mut content = String::new();
+    req.as_reader().read_to_string(&mut content).unwrap();
+    let OnlyId { id: delete_id } = serde_json::from_str(&content).unwrap();
+
+    if let Ok(instance) = RickRepository::find_one(connection, delete_id, "/instance") {
+        internal_sender
+            .send(ApiChannel {
+                action: CRUD::Delete,
+                workload_id: None,
+                instance_id: Some(delete_id),
+            })
+            .unwrap();
+        RickRepository::delete(connection, instance.id).unwrap();
+
+        logger
+            .send(LoggingChannel {
+                message: String::from(format!("Delete instance {}", instance.id)),
+                log_type: LogType::Log,
+            })
+            .unwrap();
+        Ok(tiny_http::Response::from_string("").with_status_code(tiny_http::StatusCode::from(204)))
+    } else {
+        logger
+            .send(LoggingChannel {
+                message: String::from(format!("Instance id {} not found", delete_id)),
+                log_type: LogType::Error,
+            })
+            .unwrap();
+        Ok(
+            tiny_http::Response::from_string(format!("Instance id {} not found", delete_id))
+                .with_status_code(tiny_http::StatusCode::from(404)),
+        )
+    }
 }

@@ -23,3 +23,12 @@ impl InstanceDefinition {
         self.name.get_or_insert(random_name_generator.next().unwrap())
     }
 }
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Instance {
+    pub id: usize,
+    pub name: String,
+    pub workload_id: usize,
+    pub status: String,
+}

@@ -1,3 +1,4 @@
+use crate::api::types::workload::WorkloadDefinition;
 use crate::api::{ApiChannel, CRUD};
 use crate::database::RickRepository;
 use names::Generator;
@@ -17,7 +18,18 @@ pub fn send_create_instance(
         None => &random_name,
     };
 
-    RickRepository::insert(connection, instance_name, "").unwrap();
+    let workload_db = match RickRepository::find_one(connection, workload_id, "/workload") {
+        Ok(workload) => workload,
+        Err(err) => panic!("{}", err),
+    };
+    let workload: WorkloadDefinition = serde_json::from_str(&workload_db.value).unwrap();
+
+    RickRepository::insert(
+        connection,
+        &format!("/instance/{}/default/{}", workload.kind, instance_name),
+        "",
+    )
+    .unwrap();
     let instance_id = connection.last_insert_rowid();
 
     internal_sender

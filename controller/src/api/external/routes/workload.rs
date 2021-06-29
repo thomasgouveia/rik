@@ -53,10 +53,7 @@ pub fn create(
     );
 
     // Check name is not used
-    if let Ok(_) = RickRepository::check_duplicate_name(
-        connection,
-        &format!("/workload/default/{}", workload.name),
-    ) {
+    if let Ok(_) = RickRepository::check_duplicate_name(connection, &name) {
         logger
             .send(LoggingChannel {
                 message: String::from("Name already used"),

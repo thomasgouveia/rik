@@ -40,7 +40,10 @@ impl Server {
                     // Send workload to sheduler
                     self.logger
                         .send(LoggingChannel {
-                            message: format!("Create instance: {:?}, workload_id : {:?}", notification.instance_id, notification.workload_id),
+                            message: format!(
+                                "Ctrl to scheduler create instance: {:?}, workload_id : {:?}",
+                                notification.instance_id, notification.workload_id
+                            ),
                             log_type: LogType::Log,
                         })
                         .unwrap();
@@ -50,7 +53,10 @@ impl Server {
                     // Send instruction to sheduler
                     self.logger
                         .send(LoggingChannel {
-                            message: format!("Delete instance: {:?}", notification.instance_id),
+                            message: format!(
+                                "Ctrl to scheduler delete instance: {:?}",
+                                notification.instance_id
+                            ),
                             log_type: LogType::Log,
                         })
                         .unwrap();
