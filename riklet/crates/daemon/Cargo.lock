@@ -68,12 +68,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
-name = "boxfnonce"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5988cb1d626264ac94100be357308f29ff7cbdd3b36bda27f450a4ee3f713426"
-
-[[package]]
 name = "bytes"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -110,13 +104,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "command"
-version = "0.1.0"
-dependencies = [
- "log",
-]
-
-[[package]]
 name = "daemon"
 version = "0.1.0"
 dependencies = [
@@ -127,16 +114,6 @@ dependencies = [
  "simple_logger",
  "tokio",
  "tonic",
-]
-
-[[package]]
-name = "daemonize"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70c24513e34f53b640819f0ac9f705b673fcf4006d7aab8778bee72ebfc89815"
-dependencies = [
- "boxfnonce",
- "libc",
 ]
 
 [[package]]
@@ -706,24 +683,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "riklet"
-version = "0.1.0"
-dependencies = [
- "daemon",
- "daemonize",
- "runner",
- "simple_logger",
-]
-
-[[package]]
-name = "runner"
-version = "0.1.0"
-dependencies = [
- "command",
- "log",
-]
-
-[[package]]
 name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -800,12 +759,11 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.1.44"
+version = "0.1.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6db9e6914ab8b1ae1c260a4ae7a49b6c5611b40328a735b21862567685e73255"
+checksum = "ca8a50ef2360fbd1eeb0ecd46795a87a19024eb4b53c5dc916ca1fd95fe62438"
 dependencies = [
  "libc",
- "wasi",
  "winapi",
 ]
 
@@ -1011,9 +969,9 @@ dependencies = [
 
 [[package]]
 name = "wasi"
-version = "0.10.0+wasi-snapshot-preview1"
+version = "0.10.2+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a143597ca7c7793eff794def352d41792a93c481eb1042423ff7ff72ba2c31f"
+checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
 
 [[package]]
 name = "which"

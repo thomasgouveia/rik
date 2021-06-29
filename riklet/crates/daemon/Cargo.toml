@@ -1,0 +1,21 @@
+[package]
+name = "daemon"
+version = "0.1.0"
+authors = ["Hugo Amalric <hugoamalric@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "0.4.14"
+simple_logger = "1.11.0"
+proto = { path = "../proto" }
+tonic = "0.4.3"
+prost = "0.7.0"
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3.15"
+
+# client binary
+[[bin]]
+name = "client"
+path = "src/client.rs"

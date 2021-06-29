@@ -8,4 +8,6 @@ edition = "2018"
 
 [dependencies]
 runner = { path = "crates/runner" }
+daemon = { path = "crates/daemon"}
 simple_logger = "1.11.0"
+daemonize = "0.4.1"
