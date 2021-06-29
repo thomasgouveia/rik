@@ -1,12 +1,12 @@
 use env_logger::Env;
 use log::{error, info};
-use protobuf::well_known_types::Empty;
-use rik_scheduler::common::{WorkerStatus, Workload};
-use rik_scheduler::controller::controller_server::{
+use proto::common::{WorkerStatus, Workload};
+use proto::controller::controller_server::{
     Controller as ControllerClient, ControllerServer,
 };
+use proto::protobuf::well_known_types::Empty;
 use rik_scheduler::{Controller, Worker};
-use rik_scheduler::worker::worker_server::{Worker as WorkerClient, WorkerServer};
+use proto::worker::worker_server::{Worker as WorkerClient, WorkerServer};
 use rik_scheduler::{Event, SchedulerError, WorkloadChannelType};
 use std::default::Default;
 use std::net::SocketAddr;

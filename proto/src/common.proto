@@ -4,8 +4,8 @@ package common;
 
 // Simple WorkLoad description
 message Workload {
-  string instance_id = 1;
-  string definition = 2;
+    string instance_id = 1;
+    string definition = 2;
 }
 
 enum ResourceStatus {
