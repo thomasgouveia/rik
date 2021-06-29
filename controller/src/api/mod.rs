@@ -2,6 +2,7 @@ pub mod external;
 pub mod internal;
 pub mod types;
 
+use crate::api::types::workload::WorkloadDefinition;
 use std::fmt::{Display, Formatter, Result};
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -49,6 +50,7 @@ pub struct ApiChannel {
     action: CRUD,
     workload_id: Option<usize>,
     instance_id: Option<usize>,
+    workload_definition: Option<WorkloadDefinition>,
 }
 impl Display for ApiChannel {
     fn fmt(&self, f: &mut Formatter) -> Result {

@@ -10,6 +10,7 @@ edition = "2018"
 prost = "0.7.0"
 tonic = "0.4.3"
 protobuf = { version = "2", features = ["with-bytes"] }
+tokio = { version = "1.7.0", features = ["full"] }
 
 [build-dependencies]
 tonic-build = "0.4.2"

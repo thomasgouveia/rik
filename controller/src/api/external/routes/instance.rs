@@ -116,6 +116,7 @@ pub fn delete(
             .send(ApiChannel {
                 action: CRUD::Delete,
                 workload_id: None,
+                workload_definition: None,
                 instance_id: Some(delete_id),
             })
             .unwrap();

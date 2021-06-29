@@ -1,7 +1,7 @@
 mod routes;
 mod services;
 
-use crate::api::{ApiChannel, CRUD};
+use crate::api::ApiChannel;
 use crate::database::RickDataBase;
 use crate::logger::{LogType, LoggingChannel};
 use std::sync::mpsc::{Receiver, Sender};
@@ -36,15 +36,8 @@ impl Server {
         }
     }
 
-    pub fn run(&self) {
-        self.internal_sender
-            .send(ApiChannel {
-                action: CRUD::Delete,
-                workload_id: Some(1),
-                instance_id: Some(1),
-            })
-            .unwrap();
-        self.run_server();
+    pub fn run(&self, db: Arc<RickDataBase>) {
+        self.run_server(db);
         self.listen_notification();
     }
 
@@ -54,13 +47,11 @@ impl Server {
         }
     }
 
-    fn run_server(&self) {
+    fn run_server(&self, db: Arc<RickDataBase>) {
         let host = String::from("127.0.0.1");
         let port = 5000;
         let server = TinyServer::http(format!("{}:{}", host, port)).unwrap();
         let server = Arc::new(server);
-        let db = RickDataBase::new(String::from("rick"));
-        db.init_tables().unwrap();
 
         let mut guards = Vec::with_capacity(4);
 

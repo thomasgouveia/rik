@@ -36,6 +36,7 @@ pub fn send_create_instance(
         .send(ApiChannel {
             action: CRUD::Create,
             workload_id: Some(workload_id),
+            workload_definition: Some(workload),
             instance_id: Some(instance_id as usize),
         })
         .unwrap();
