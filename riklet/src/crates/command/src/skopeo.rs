@@ -1,19 +1,20 @@
-use crate::command::{RikCommand};
-use crate::SKOPEO_BIN;
+use crate::binary::{Binary};
+use crate::{SKOPEO_BIN};
 use log::{debug};
 
 /// Skopeo structure represents the skopeo binary and provide methods to
 /// interact with the binary.
 #[derive(Debug)]
 pub struct Skopeo {
-    cmd: RikCommand
+    cmd: Binary
 }
 
 impl Skopeo {
 
-    pub fn new() -> Self {
-        Skopeo {
-            cmd: RikCommand::create(SKOPEO_BIN)
+    pub fn new() -> Option<Self> {
+        match Binary::create(SKOPEO_BIN) {
+            Ok(binary) => Some(Skopeo { cmd: binary }),
+            _ => None
         }
     }
 

@@ -1,11 +1,13 @@
 use std::hash::Hash;
 use crate::hash::generate_hash;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Hash)]
 pub struct Image {
     pub oci: String,
     pub name: String,
     pub tag: String,
+    pub bundle: Option<PathBuf>,
 }
 
 impl Image {
@@ -20,7 +22,12 @@ impl Image {
             oci: String::from(img),
             name: String::from(image_name),
             tag: String::from(image_tag),
+            bundle: None
         }
+    }
+
+    pub fn set_bundle(&mut self, bundle: &str) {
+        self.bundle = Some(Path::new(bundle).to_path_buf());
     }
 
     pub fn get_hash(&self) -> u64 {
@@ -30,19 +37,4 @@ impl Image {
     pub fn get_hashed_oci(&self) -> String {
         format!("{}:{}", self.get_hash(), self.tag)
     }
-
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use crate::image::Image;
-//
-//     #[test]
-//     fn it_build_an_image() {
-//         let image_str = "nginx:latest";
-//
-//         let image = Image::new(image_str);
-//
-//         assert_eq!(2 + 2, 4);
-//     }
-// }

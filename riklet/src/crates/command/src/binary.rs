@@ -1,16 +1,28 @@
 use std::process::{Command, ExitStatus};
 use std::ffi::OsStr;
+use std::path::PathBuf;
+use log::{debug, error};
+use crate::{BinaryError};
+use shared::utils::find_binary;
 
 #[derive(Debug)]
-pub struct RikCommand {
-    binary: String
+pub struct Binary {
+    binary: PathBuf
 }
 
-impl RikCommand {
+impl Binary {
 
-    pub fn create(binary: &str) -> Self {
-        RikCommand {
-            binary: String::from(binary)
+    /// Create a binary instance in order to control a binary programmatically.
+    pub fn create(binary: &str) -> Result<Self, BinaryError> {
+        match find_binary(binary) {
+            Some(binary_path) => {
+                debug!("Binary '{}' found : '{}'", binary, binary_path.display());
+                Ok(Binary { binary: binary_path })
+            },
+            None => {
+                error!("Binary '{}' not found. It is installed on host and added to the PATH ?", binary);
+                Err(BinaryError::NotFound(binary.to_string()))
+            }
         }
     }
 
@@ -20,9 +32,7 @@ impl RikCommand {
             I: IntoIterator<Item = S>,
             S: AsRef<OsStr>
     {
-
-
-        let output = Command::new(&self.binary[..])
+        let output = Command::new(&self.binary)
             .args(args)
             .output()
             .unwrap();
@@ -42,11 +52,11 @@ impl RikCommand {
 
 #[cfg(test)]
 mod tests {
-    use crate::command::{RikCommand, RikCommandError};
+    use crate::binary::{Cmd};
 
     #[test]
     fn it_execute_echo_command() {
-        let command = RikCommand::create("echo");
+        let command = Cmd::create("echo");
 
         let (result, status) = command.execute(&["test"]);
 
@@ -58,7 +68,7 @@ mod tests {
 
     #[test]
     fn it_return_error() {
-        let command = RikCommand::create("cat");
+        let command = Cmd::create("cat");
 
         let (result, status) = command.execute(&["/somethingnotexisting"]);
 
