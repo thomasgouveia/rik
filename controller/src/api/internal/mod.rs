@@ -40,7 +40,7 @@ impl Server {
                     // Send workload to sheduler
                     self.logger
                         .send(LoggingChannel {
-                            message: format!("Create instance: {:?}", notification.workload_id),
+                            message: format!("Create instance: {:?}, workload_id : {:?}", notification.instance_id, notification.workload_id),
                             log_type: LogType::Log,
                         })
                         .unwrap();

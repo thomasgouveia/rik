@@ -52,6 +52,21 @@ pub fn create(
         workload.kind, namespace, workload.name
     );
 
+    // Check name is not used
+    if let Ok(_) = RickRepository::check_duplicate_name(
+        connection,
+        &format!("/workload/default/{}", workload.name),
+    ) {
+        logger
+            .send(LoggingChannel {
+                message: String::from("Name already used"),
+                log_type: LogType::Warn,
+            })
+            .unwrap();
+        return Ok(tiny_http::Response::from_string("Name already used")
+            .with_status_code(tiny_http::StatusCode::from(404)));
+    }
+
     if let Ok(()) = RickRepository::insert(
         connection,
         &name,
@@ -69,11 +84,11 @@ pub fn create(
     } else {
         logger
             .send(LoggingChannel {
-                message: String::from("Cannot create tenant"),
+                message: String::from("Cannot create workload"),
                 log_type: LogType::Error,
             })
             .unwrap();
-        Ok(tiny_http::Response::from_string("Cannot create tenant")
+        Ok(tiny_http::Response::from_string("Cannot create workload")
             .with_status_code(tiny_http::StatusCode::from(500)))
     }
 }
@@ -102,12 +117,12 @@ pub fn delete(
     } else {
         logger
             .send(LoggingChannel {
-                message: String::from(format!("Workload id {} not found", delete_id)), //tenant.id)),
+                message: String::from(format!("Workload id {} not found", delete_id)),
                 log_type: LogType::Error,
             })
             .unwrap();
         Ok(
-            tiny_http::Response::from_string(format!("Workload id {} not found", delete_id)) //)),
+            tiny_http::Response::from_string(format!("Workload id {} not found", delete_id))
                 .with_status_code(tiny_http::StatusCode::from(404)),
         )
     }

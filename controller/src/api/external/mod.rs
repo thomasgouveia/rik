@@ -1,4 +1,5 @@
 mod routes;
+mod services;
 
 use crate::api::{ApiChannel, CRUD};
 use crate::database::RickDataBase;

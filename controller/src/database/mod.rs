@@ -66,6 +66,19 @@ impl RickRepository {
         }
     }
 
+    pub fn check_duplicate_name(connection: &Connection, name: &str) -> Result<Element> {
+        let mut stmt = connection.prepare(&format!(
+            "SELECT id, name, value FROM cluster WHERE name LIKE '{}%'",
+            name
+        ))?;
+        match stmt.query_row([], |row| {
+            Ok(Element::new(row.get(0)?, row.get(1)?, row.get(2)?))
+        }) {
+            Ok(element) => Ok(element),
+            Err(err) => Err(err),
+        }
+    }
+
     // TODO: add pagination
     pub fn find_all(connection: &Connection, element_type: &str) -> Result<Vec<Element>> {
         let mut stmt = connection
