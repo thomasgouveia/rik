@@ -61,7 +61,7 @@ pub struct Worker {
     /// # Examples
     ///
     /// The following code is used in order to schedule an instance
-    /// ```
+    /// ```ignore
     /// worker.channel.send(Ok(Workload {
     ///     instance_id: String::from("testing"),
     ///     definition: String::from("{}"),

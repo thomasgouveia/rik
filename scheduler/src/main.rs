@@ -217,3 +217,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     manager.await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    #[should_panic(expected = "No remote address found")]
+    async fn test_grpc_service_register_should_panic() -> () {
+        let (sender, mut receiver) = channel::<Event>(1024);
+
+        let service = GRPCService {
+            sender: sender,
+        };
+
+        let mock_request = Request::new(());
+        service.register(mock_request).await.unwrap();
+        receiver.recv().await;
+        ()
+    }
+}
