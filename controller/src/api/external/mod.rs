@@ -71,6 +71,12 @@ impl Server {
                     req.respond(res).unwrap();
                     continue;
                 }
+                logger
+                    .send(LoggingChannel {
+                        message: String::from("Route not found"),
+                        log_type: LogType::Log,
+                    })
+                    .unwrap();
                 req.respond(tiny_http::Response::empty(tiny_http::StatusCode::from(404)))
                     .unwrap();
             });
