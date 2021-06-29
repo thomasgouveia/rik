@@ -1,5 +1,5 @@
 use std::hash::Hash;
-use crate::hash::generate_hash;
+use shared::utils::generate_hash;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Hash)]
@@ -25,6 +25,10 @@ impl Image {
             bundle: None
         }
     }
+    
+    pub fn get_uuid(&self) -> String {
+        format!("{}-{}", self.name, self.get_hash())
+    }
 
     pub fn set_bundle(&mut self, bundle: &str) {
         self.bundle = Some(Path::new(bundle).to_path_buf());
@@ -35,6 +39,6 @@ impl Image {
     }
 
     pub fn get_hashed_oci(&self) -> String {
-        format!("{}:{}", self.get_hash(), self.tag)
+        format!("{}-{}:{}", self.name, self.get_hash(), self.tag)
     }
 }

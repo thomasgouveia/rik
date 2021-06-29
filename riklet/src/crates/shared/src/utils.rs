@@ -1,4 +1,6 @@
 use std::path::PathBuf;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 
 pub fn find_binary(binary: &str) -> Option<PathBuf> {
     std::env::var_os("PATH").and_then(|paths| {
@@ -12,4 +14,10 @@ pub fn find_binary(binary: &str) -> Option<PathBuf> {
         })
             .next()
     })
+}
+
+pub fn generate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
 }

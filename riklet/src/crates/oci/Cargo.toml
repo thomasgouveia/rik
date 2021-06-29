@@ -7,5 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-command = { path = "../command" }
+shared = { path = "../shared" }
 log = "0.4.14"
+snafu = "0.6.10"
+tokio = { version = "1.7.0", features = ["full"] }
+async-trait = "0.1.50"

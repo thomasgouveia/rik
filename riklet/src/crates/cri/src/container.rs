@@ -9,7 +9,7 @@ use snafu::ensure;
 pub struct RuncConfiguration {
     pub command: Option<PathBuf>,
     pub timeout: Option<Duration>,
-    pub rootless: Option<bool>,
+    pub rootless: bool,
     pub debug: bool
 }
 
@@ -18,7 +18,7 @@ pub struct RuncConfiguration {
 pub struct Runc {
     command: PathBuf,
     timeout: Duration,
-    rootless: Option<bool>,
+    rootless: bool,
     debug: bool,
 }
 
@@ -46,11 +46,18 @@ impl Runc {
         let args = vec![String::from("list"), String::from("--format=json")];
         let mut output = self.exec(&args).await?;
         output = output.trim().to_string();
-        Ok(serde_json::from_str(&output).unwrap())
+
+        Ok(
+            if output == "null" {
+                Vec::new()
+            } else {
+                serde_json::from_str(&output).unwrap()
+            }
+        )
     }
 
     /// Run a container.
-    pub async fn run(&self, id: &str, bundle:&PathBuf, opts: Option<&CreateArgs>) -> Result<()> {
+    pub async fn run(&self, id: &str, bundle: &PathBuf, opts: Option<&CreateArgs>) -> Result<()> {
         let mut args = vec![String::from("run")];
         Self::append_opts(&mut args, opts.map(|opts| opts as &dyn Args))?;
 
@@ -73,8 +80,8 @@ impl Args for Runc {
     fn args(&self) -> Result<Vec<String>> {
         let mut args: Vec<String> = Vec::new();
 
-        if let Some(rootless) = self.rootless {
-            args.push(format!("--rootless={}", rootless))
+        if self.rootless {
+            args.push(format!("--rootless={}", self.rootless))
         }
 
         if self.debug {
@@ -109,7 +116,7 @@ impl Executable for Runc {
         let stderr = String::from_utf8(result.stderr.clone()).unwrap();
 
         if stderr != "" {
-            error!("Executable error : {}", stderr);
+            error!("Runc error : {}", stderr);
         }
 
         ensure!(
