@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
+use std::fs::File;
+use flate2::read::GzDecoder;
+use tar::Archive;
 
 pub fn find_binary(binary: &str) -> Option<PathBuf> {
     std::env::var_os("PATH").and_then(|paths| {
@@ -20,4 +23,12 @@ pub fn generate_hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
     s.finish()
+}
+
+pub fn unpack(archive: &str, dest: &PathBuf) {
+    let tar_gz = File::open(archive)
+        .expect(&format!("Unable to unzip the archive {}", archive)[..]);
+    let tar = GzDecoder::new(tar_gz);
+    let mut archive = Archive::new(tar);
+    archive.unpack(dest);
 }

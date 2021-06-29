@@ -7,9 +7,15 @@ use snafu::ensure;
 
 #[derive(Debug, Clone, Default)]
 pub struct RuncConfiguration {
+    /// The path of the runc command. If None, we will try to search the package in your $PATH.
     pub command: Option<PathBuf>,
+    /// Timeout for Runc commands.
     pub timeout: Option<Duration>,
+    /// The root directory for storage of container state
+    pub root: Option<PathBuf>,
+    /// Ignore cgroup permission errors
     pub rootless: bool,
+    /// Enable debug output for logging
     pub debug: bool
 }
 
@@ -18,11 +24,13 @@ pub struct RuncConfiguration {
 pub struct Runc {
     command: PathBuf,
     timeout: Duration,
+    root: Option<PathBuf>,
     rootless: bool,
     debug: bool,
 }
 
 impl Runc {
+    /// Create a Runc instance with the provided configuration.
     pub fn new(config: RuncConfiguration) -> Result<Self> {
         let command = config
             .command
@@ -36,12 +44,13 @@ impl Runc {
         Ok(Self {
             command,
             timeout,
+            root: config.root,
             debug: config.debug,
             rootless: config.rootless
         })
     }
 
-    /// List containers
+    /// List all containers
     pub async fn list(&self) -> Result<Vec<Container>> {
         let args = vec![String::from("list"), String::from("--format=json")];
         let mut output = self.exec(&args).await?;
@@ -73,12 +82,30 @@ impl Runc {
         args.push(String::from(id));
         self.exec(&args).await.map(|_|())
     }
+
+    /// Get the state of a container
+    pub async fn state(&self, id: &str) -> Result<Container> {
+        let args = vec![String::from("state"), String::from(id)];
+        let output = self.exec(&args).await?;
+        Ok(serde_json::from_str(&output).context(JsonDeserializationError {})?)
+    }
 }
 
 impl Args for Runc {
     /// Implement arguments for Runc binary.
     fn args(&self) -> Result<Vec<String>> {
         let mut args: Vec<String> = Vec::new();
+
+        if let Some(root) = self.root.clone() {
+            args.push(String::from("--root"));
+            args.push(root
+                .canonicalize()
+                .context(InvalidPathError {})?
+                .to_string_lossy()
+                .parse()
+                .unwrap()
+            )
+        }
 
         if self.rootless {
             args.push(format!("--rootless={}", self.rootless))
@@ -174,5 +201,96 @@ impl Args for CreateArgs {
         }
 
         Ok(args)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use uuid::Uuid;
+
+    use std::env::{temp_dir, var_os, var, current_dir};
+    use std::fs::{create_dir_all, File, copy};
+    use std::path::{PathBuf, Path};
+
+    use crate::container::{RuncConfiguration, Runc, CreateArgs};
+    use crate::console::ConsoleSocket;
+    use shared::utils::unpack;
+    use tokio::time::sleep;
+    use std::time::Duration;
+    use tokio::runtime::Runtime;
+    use log::error;
+
+    const BUSYBOX_ARCHIVE: &str = "../../../fixtures/busybox.tar.gz";
+    const RUNC_FIXTURE: &str = "../../../fixtures/runc.amd64";
+
+    /// Install Runc in the temporary environment for the test & create all directories and files used by the test.
+    fn setup_test_sequence() -> (PathBuf, PathBuf) {
+        let sequence_id = format!("{}", Uuid::new_v4());
+        let mut sequence_path = temp_dir().join(&sequence_id);
+        let sequence_root = PathBuf::from(var_os("XDG_RUNTIME_DIR")
+            .expect("Expected temporary path"))
+            .join("runc")
+            .join(&sequence_id);
+
+        create_dir_all(&sequence_root).expect("Unable to create runc root");
+        create_dir_all(&sequence_path).expect("Unable to create the temporary folder");
+
+        sequence_path = sequence_path.join("runc.amd64");
+
+        copy(PathBuf::from(RUNC_FIXTURE), &sequence_path)
+            .expect("Unable to copy runc binary into the temporary folder.");
+
+        (sequence_path, sequence_root)
+    }
+
+    #[test]
+    fn test_it_run_a_container() {
+        let (runc_path, runc_root) = setup_test_sequence();
+
+        let mut config: RuncConfiguration = Default::default();
+        config.command = Some(runc_path);
+        config.root = Some(runc_root);
+
+        let runc = Runc::new(config).expect("Unable to create runc instance");
+
+        let task = async move {
+            let id = format!("{}", Uuid::new_v4());
+
+            let socket_path = temp_dir().join(&id).with_extension("console");
+            let console_socket = ConsoleSocket::new(&socket_path)?;
+
+            tokio::spawn(async move {
+                match console_socket.get_listener().as_ref().unwrap().accept().await {
+                    Ok((stream, _socket_addr)) => {
+                        Box::leak(Box::new(stream));
+                    },
+                    Err(err) => {
+                        error!("Receive PTY master error : {:?}", err)
+                    }
+                }
+            });
+
+            let bundle = temp_dir().join(&id);
+
+            unpack(BUSYBOX_ARCHIVE, &bundle);
+
+            runc.run(&id, &bundle, Some(&CreateArgs {
+                pid_file: None,
+                console_socket: Some(socket_path),
+                no_pivot: false,
+                no_new_keyring: false,
+                detach: true
+            })).await?;
+
+
+            sleep(Duration::from_millis(500));
+
+            runc.state(&id).await
+        };
+
+        let mut runtime = Runtime::new().expect("Unable to create runtime");
+        let container = runtime.block_on(task).expect("test failed");
+
+        assert_eq!(container.status, Some(String::from("running")))
     }
 }

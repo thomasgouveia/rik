@@ -30,6 +30,8 @@ pub enum Error {
     InvalidPathError { source: std::io::Error },
     #[snafu(display("Unable to bind to unix socket: {}", source))]
     UnixSocketOpenError { source: std::io::Error },
+    #[snafu(display("Json deserialization error: {}", source))]
+    JsonDeserializationError { source: serde_json::error::Error },
 }
 
 trait Args {
