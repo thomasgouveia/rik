@@ -99,4 +99,12 @@ impl RickRepository {
         }
         Ok(elements)
     }
+
+    pub fn update(connection: &Connection, id: usize) -> Result<()> {
+        connection.execute(
+            "UPDATE cluster SET value=(?1) WHERE id = (?2)",
+            params!["Status Updated", id],
+        )?;
+        Ok(())
+    }
 }

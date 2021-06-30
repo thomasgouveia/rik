@@ -1,21 +1,24 @@
 use crate::api::{ApiChannel, CRUD};
 use crate::database::RickDataBase;
+use crate::database::RickRepository;
 use crate::logger::{LogType, LoggingChannel};
 use proto::common::Workload;
 use proto::controller::controller_client::ControllerClient;
+use rusqlite::Connection;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use tonic;
 
+#[derive(Clone)]
 struct RickControllerClient {
     client: ControllerClient<tonic::transport::Channel>,
 }
 
 #[allow(dead_code)]
 impl RickControllerClient {
-    pub async fn connect() -> Result<Self, tonic::transport::Error> {
+    pub async fn connect() -> Result<RickControllerClient, tonic::transport::Error> {
         let client = ControllerClient::connect("http://127.0.0.1:10000").await?;
-        Ok(Self { client })
+        Ok(RickControllerClient { client })
     }
 
     pub async fn schedule_instance(&mut self, instance: Workload) -> Result<(), tonic::Status> {
@@ -24,12 +27,17 @@ impl RickControllerClient {
         Ok(())
     }
 
-    pub async fn get_status_updates(&mut self) -> Result<(), tonic::Status> {
+    pub async fn get_status_updates(
+        &mut self,
+        database: Arc<RickDataBase>,
+    ) -> Result<(), tonic::Status> {
+        let connection: Connection = database.open().unwrap();
         let request = tonic::Request::new(());
 
         let mut stream = self.client.get_status_updates(request).await?.into_inner();
         while let Some(status) = stream.message().await? {
             println!("Instance Status {:?}", status);
+            RickRepository::update(&connection, 1).unwrap();
         }
         Ok(())
     }
@@ -55,8 +63,16 @@ impl Server {
         }
     }
 
-    pub async fn run(&self, _database: Arc<RickDataBase>) {
+    pub async fn run(&self, database: Arc<RickDataBase>) {
         let client: RickControllerClient = RickControllerClient::connect().await.unwrap();
+
+        let mut client_clone = client.clone();
+        let database = database.clone();
+
+        tokio::spawn(async move {
+            client_clone.get_status_updates(database).await.unwrap();
+        });
+
         self.listen_notification(client).await;
     }
 
