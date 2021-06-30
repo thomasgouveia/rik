@@ -1,29 +1,12 @@
-use log::{debug, error, info, warn, LevelFilter};
-use proto::worker::worker_client::WorkerClient;
-use proto::{worker as Worker};
-use proto::common::{WorkerStatus, InstanceMetric, WorkerMetric, ResourceStatus };
 use futures_util::stream;
+use log::{debug, error, info, warn, LevelFilter};
+use proto::common::{InstanceMetric, ResourceStatus, WorkerMetric, WorkerStatus};
+use proto::worker as Worker;
+use proto::worker::worker_client::WorkerClient;
 use simple_logger::SimpleLogger;
 use tonic::{transport::Channel, Request, Status, Streaming};
 
-/*enum ResourceStatus {
-    UNKNOWN = 0,
-    PENDING = 1,
-    RUNNING = 2,
-    FAILED = 3,
-    TERMINATED = 4
-}
-
-struct Metric {
-    status: ResourceStatus,
-    metrics: &'static str
-}
-
-struct WorkerStatus {
-    instance: Metric,
-    worker: Metric
-}*/
-
+#[derive(Clone)]
 struct RikletClient {
     client: WorkerClient<Channel>,
 }
@@ -41,13 +24,13 @@ impl RikletClient {
         // sending request and waiting for response
         let mut stream = self.client.register(request).await?.into_inner();
         info!("Waiting for workload");
-        while let Some(res) = stream.message().await? {
+        while let res = stream.message().await {
             info!("{:?}", res);
         }
         Ok(())
     }
 
-    pub async fn send_status_updates(&mut self, status: Vec<WorkerStatus>) -> Result<(), Status>  {
+    pub async fn send_status_updates(&mut self, status: Vec<WorkerStatus>) -> Result<(), Status> {
         // creating a new Request
         let request = Request::new(stream::iter(status.clone()));
         // sending request and waiting for response
@@ -70,21 +53,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // worker registration
     let mut client = RikletClient::connect().await?;
-    client.register().await?;
+    let mut register_client = client.clone();
+    tokio::spawn(async move {
+        register_client.register().await;
+    });
 
     let status = vec![
         WorkerStatus {
-            status: Some(proto::common::worker_status::Status::Instance(InstanceMetric {
-                status: 2,
-                metrics: "{}".to_string()
-            }))
+            status: Some(proto::common::worker_status::Status::Instance(
+                InstanceMetric {
+                    status: 2,
+                    metrics: "{}".to_string(),
+                },
+            )),
         },
         WorkerStatus {
             status: Some(proto::common::worker_status::Status::Worker(WorkerMetric {
                 status: 2,
-                metrics: "{}".to_string()
-            }))
-        }
+                metrics: "{}".to_string(),
+            })),
+        },
     ];
 
     // send status updates
