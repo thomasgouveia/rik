@@ -77,10 +77,6 @@ pub struct Worker {
     ///     channel: sender,
     ///     addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
     /// }
-    /// worker.channel.send(Ok(Workload {
-    ///     instance_id: String::from("testing"),
-    ///     definition: String::from("{}"),
-    /// })).await?;
     /// ```
     pub channel: Sender<WorkloadChannelType>,
     /// Remote addr of the worker

@@ -134,7 +134,6 @@ impl Manager {
         };
         instance.run_workers_listener(sender.clone());
         instance.run_controllers_listener(sender.clone());
-        //instance.run_scheduler(sender.clone(), instance.workers.clone());
         let channel_listener = instance.listen();
         channel_listener.await?;
         Ok(instance)
@@ -278,4 +277,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let manager = Manager::run();
     manager.await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    #[should_panic(expected = "No remote address found")]
+    async fn test_grpc_service_register_should_panic() -> () {
+        let (sender, mut receiver) = channel::<Event>(1024);
+
+        let service = GRPCService {
+            sender: sender,
+        };
+
+        let mock_request = Request::new(());
+        service.register(mock_request).await.unwrap();
+        receiver.recv().await;
+        ()
+    }
 }
