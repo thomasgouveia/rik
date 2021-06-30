@@ -49,3 +49,7 @@ This code prints this kind of json :
 ## Examples
 
 Code examples can be found [here](./examples)
+
+## TODOs
+
+- tests
