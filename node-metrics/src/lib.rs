@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use sysinfo::{DiskExt, ProcessorExt, System, SystemExt};
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct CpuMetrics {
     /// number of CPU
     total: u8,
@@ -8,20 +10,24 @@ struct CpuMetrics {
     free: f32,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct MemoryMetrics {
+    /// Total memory (bytes)
     total: u64,
+    /// Free memory (bytes)
     free: u64,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct DiskMetrics {
     disk_name: String,
+    /// Total disk (bytes)
     total: u64,
+    /// Free disk (bytes)
     free: u64,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Metrics {
     cpu: CpuMetrics,
     memory: MemoryMetrics,
@@ -72,7 +78,9 @@ impl Metrics {
         }
     }
 
-    // pub fn json(&self) -> Result<String> {}
+    pub fn to_json(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(&self)
+    }
 
     pub fn log(&self) {
         println!("{:?}", self)
