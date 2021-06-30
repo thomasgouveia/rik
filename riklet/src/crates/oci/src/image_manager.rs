@@ -5,6 +5,13 @@ use log::{info, error, debug};
 use crate::umoci::{Umoci, UmociConfiguration, UnpackArgs};
 use crate::*;
 use std::path::PathBuf;
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ImageManagerConfiguration {
+    pub oci_manager: UmociConfiguration,
+    pub image_puller: SkopeoConfiguration,
+}
 
 #[derive(Debug)]
 pub struct ImageManager {
@@ -19,10 +26,10 @@ pub struct ImageManager {
 impl ImageManager {
 
     /// Create a new Puller
-    pub fn new(umoci_config: UmociConfiguration, skopeo_config: SkopeoConfiguration) -> Result<Self> {
+    pub fn new(config: ImageManagerConfiguration) -> Result<Self> {
 
-        let umoci = Umoci::new(umoci_config)?;
-        let skopeo = Skopeo::new(skopeo_config)?;
+        let umoci = Umoci::new(config.oci_manager)?;
+        let skopeo = Skopeo::new(config.image_puller)?;
 
         debug!("ImageManager initialized.");
 

@@ -36,3 +36,27 @@ pub fn unpack(archive: &str, dest: &PathBuf) -> std::io::Result<()> {
     archive.unpack(dest);
     Ok(())
 }
+
+pub fn create_file_with_parent_folders(path: &PathBuf) -> std::io::Result<File> {
+    let parent = path.parent().unwrap();
+    if !parent.exists() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let file = File::create(&path)?;
+
+    log::debug!("File {} created.", path.display());
+
+    Ok(file)
+}
+
+pub fn create_directory_if_not_exists(dir: &Option<PathBuf>) -> std::io::Result<()> {
+    if let Some(dir) = dir {
+        if !dir.exists() {
+            std::fs::create_dir_all(dir)?;
+        }
+
+        log::debug!("Directory {} created.", dir.display());
+    }
+
+    Ok(())
+}

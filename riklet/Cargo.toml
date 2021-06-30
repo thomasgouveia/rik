@@ -10,7 +10,10 @@ edition = "2018"
 tokio = { version = "1.7.0", features = ["full"] }
 cri = { path = "src/crates/cri" }
 oci = { path = "src/crates/oci" }
+shared = { path = "src/crates/shared" }
 simple_logger = "1.11.0"
 log = "0.4.14"
 snafu = "0.6.10"
 libc="0.2.97"
+serde = { version = "1.0", features = ["derive"] }
+toml="0.5.8"

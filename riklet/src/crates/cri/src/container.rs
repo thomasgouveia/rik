@@ -5,19 +5,20 @@ use tokio::process::Command;
 use std::process::Stdio;
 use snafu::ensure;
 use log::warn;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct RuncConfiguration {
-    /// The path of the runc command. If None, we will try to search the package in your $PATH.
-    pub command: Option<PathBuf>,
-    /// Timeout for Runc commands.
-    pub timeout: Option<Duration>,
-    /// The root directory for storage of container state
-    pub root: Option<PathBuf>,
     /// Ignore cgroup permission errors
     pub rootless: bool,
     /// Enable debug output for logging
-    pub debug: bool
+    pub debug: bool,
+    /// Timeout for Runc commands.
+    pub timeout: Option<Duration>,
+    /// The path of the runc command. If None, we will try to search the package in your $PATH.
+    pub command: Option<PathBuf>,
+    /// The root directory for storage of container state
+    pub root: Option<PathBuf>,
 }
 
 /// A basic implementation to interact with the Runc binary

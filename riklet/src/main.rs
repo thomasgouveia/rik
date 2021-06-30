@@ -9,9 +9,14 @@ use oci::image_manager::ImageManager;
 use oci::umoci::UmociConfiguration;
 use oci::skopeo::SkopeoConfiguration;
 use std::time::Duration;
+use snafu::Snafu;
+
+mod config;
+mod constants;
+
+use config::Configuration;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-const DEFAULT_COMMAND_TIMEOUT: u64 = 30000;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -19,19 +24,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Riklet v{}", VERSION);
 
-    let mut skopeo_config: SkopeoConfiguration = Default::default();
-    skopeo_config.images_directory = Some(PathBuf::from(String::from("/.riklet/images")));
-    skopeo_config.timeout = Some(Duration::from_millis(DEFAULT_COMMAND_TIMEOUT));
+    let config_file = PathBuf::from(String::from("/etc/riklet/configuration.toml"));
+    let config = Configuration::load(&config_file)?;
 
-    let mut umoci_config: UmociConfiguration = Default::default();
-    umoci_config.bundle_directory = Some(PathBuf::from(String::from("/.riklet/bundles")));
-    umoci_config.timeout = Some(Duration::from_millis(DEFAULT_COMMAND_TIMEOUT));
+    config.bootstrap();
 
     // The path should be set by the top level riklet module, this is just for test purposes.
-    let mut im = ImageManager::new(umoci_config, skopeo_config)?;
+    let mut im = ImageManager::new(config.manager)?;
 
     // Instanciate our container runtime
-    let runc = Runc::new(Default::default())?;
+    let runc = Runc::new(config.runner)?;
 
     // Pull image from docker hub
     let image = im.pull("busybox:latest").await?;
@@ -50,13 +52,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let _result = runc.run(&image.name, &image.bundle.unwrap(), Some(&CreateArgs {
+    runc.run(&image.name, &image.bundle.unwrap(), Some(&CreateArgs {
         pid_file: None,
         console_socket: Some(socket_path),
         no_pivot: false,
         no_new_keyring: false,
         detach: true
-    })).await;
+    })).await?;
 
     info!("Riklet initialized.");
 
@@ -66,3 +68,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {}
 }
+

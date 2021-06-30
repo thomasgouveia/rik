@@ -6,13 +6,14 @@ use log::debug;
 use crate::*;
 use tokio::process::Command;
 use std::process::Stdio;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct UmociConfiguration {
+    pub debug: bool,
     pub command: Option<PathBuf>,
-    pub bundle_directory: Option<PathBuf>,
+    pub bundles_directory: Option<PathBuf>,
     pub timeout: Option<Duration>,
-    pub verbose: bool,
     pub log_level: Option<String>,
 }
 
@@ -21,7 +22,7 @@ pub struct UmociConfiguration {
 pub struct Umoci {
     command: PathBuf,
     timeout: Duration,
-    bundle_directory: PathBuf,
+    bundles_directory: PathBuf,
     verbose: bool,
     log_level: Option<String>
 }
@@ -37,8 +38,8 @@ impl Umoci {
 
         let timeout = config.timeout.or(Some(Duration::from_millis(5000))).unwrap();
 
-        let bundle_directory = config
-            .bundle_directory
+        let bundles_directory = config
+            .bundles_directory
             .unwrap()
             .canonicalize()
             .context(InvalidPathError {})?;
@@ -48,16 +49,16 @@ impl Umoci {
         Ok(Self {
             command,
             timeout,
-            bundle_directory,
+            bundles_directory,
             log_level: config.log_level,
-            verbose: config.verbose,
+            verbose: config.debug,
         })
     }
 
     fn get_bundle_path(&self, bundle_id: &String) -> String {
         format!(
             "{}/{}",
-            self.bundle_directory.to_str().unwrap(),
+            self.bundles_directory.to_str().unwrap(),
             bundle_id
         )
     }

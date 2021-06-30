@@ -7,20 +7,21 @@ use std::process::Stdio;
 use tokio::process::Command;
 use log::debug;
 use snafu::ensure;
+use serde::{Serialize, Deserialize};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct SkopeoConfiguration {
-    pub command: Option<PathBuf>,
-    pub timeout: Option<Duration>,
-    pub images_directory: Option<PathBuf>,
     pub debug: bool,
     pub insecure_policy: bool,
+    pub command: Option<PathBuf>,
+    pub images_directory: Option<PathBuf>,
     pub override_arch: Option<String>,
     pub override_os: Option<String>,
     pub override_variant: Option<String>,
     pub policy: Option<String>,
     pub registries: Option<PathBuf>,
     pub tmp_dir: Option<PathBuf>,
+    pub timeout: Option<Duration>,
 }
 
 #[derive(Debug)]
