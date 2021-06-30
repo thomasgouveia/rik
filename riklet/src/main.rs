@@ -24,8 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Riklet v{}", VERSION);
 
-    let config_file = PathBuf::from(String::from("/etc/riklet/configuration.toml"));
-    let config = Configuration::load(&config_file)?;
+    let config = Configuration::load()?;
 
     config.bootstrap();
 

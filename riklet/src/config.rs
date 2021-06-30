@@ -68,14 +68,15 @@ impl Configuration {
 
     /// Load the configuration file
     /// If not exists, create it and return the default configuration
-    pub fn load(path: &PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
+        let path = PathBuf::from("/etc/riklet").join("configuration.toml");
         let configuration = if !path.exists() {
-            Configuration::create(path)
+            Configuration::create(&path)
         } else {
-            Configuration::read(path)
+            Configuration::read(&path)
         }?;
 
-        debug!("Loaded configuration from file {}.", path.display());
+        debug!("Loaded configuration from file {}", path.display());
 
         Ok(configuration)
     }
