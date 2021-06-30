@@ -13,3 +13,4 @@ oci = { path = "src/crates/oci" }
 simple_logger = "1.11.0"
 log = "0.4.14"
 snafu = "0.6.10"
+libc="0.2.97"

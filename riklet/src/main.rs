@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let runc = Runc::new(Default::default())?;
 
     // Pull image from docker hub
-    let image = im.pull("ubuntu:latest").await?;
+    let image = im.pull("busybox:latest").await?;
 
     let socket_path = PathBuf::from(String::from(format!("/tmp/{}.sock", image.name)));
     let console_socket = ConsoleSocket::new(&socket_path).unwrap();

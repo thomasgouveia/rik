@@ -31,7 +31,7 @@ impl Image {
     }
 
     pub fn set_bundle(&mut self, bundle: &str) {
-        self.bundle = Some(Path::new(bundle).to_path_buf());
+        self.bundle = Some(PathBuf::from(bundle));
     }
 
     pub fn get_hash(&self) -> u64 {
@@ -42,3 +42,22 @@ impl Image {
         format!("{}-{}:{}", self.name, self.get_hash(), self.tag)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::image::Image;
+
+    #[test]
+    fn test_it_parse_a_image_string() {
+        let image_str = "alpine:latest";
+
+        let image = Image::from(image_str);
+
+        assert_eq!(image.name, "alpine");
+        assert_eq!(image.tag, "latest");
+    }
+}
+
+
+
+
