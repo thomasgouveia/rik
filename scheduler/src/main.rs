@@ -1,5 +1,4 @@
 mod config_parser;
-mod state_manager;
 mod grpc;
 
 use env_logger::Env;
