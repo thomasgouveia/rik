@@ -9,6 +9,9 @@ edition = "2018"
 [dependencies]
 proto = { path = "src/crates/proto", version = "0.1.0" }
 daemon = { path = "src/crates/daemon" }
+cri = { path = "src/crates/cri" }
+oci = { path = "src/crates/oci" }
+shared = { path = "src/crates/shared" }
 daemonize = "0.4.1"
 log = "0.4.14"
 simple_logger = "1.11.0"
@@ -19,3 +22,8 @@ futures-util = "0.3.15"
 serde = { version = "1.0", features = ["derive"] }
 tokio-stream = "0.1.6"
 async-trait = "0.1.50"
+snafu = "0.6.10"
+libc="0.2.97"
+toml="0.5.8"
+uuid = { version = "0.8", features = ["v4"] }
+
