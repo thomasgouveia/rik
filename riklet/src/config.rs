@@ -30,7 +30,8 @@ pub enum Error {
     CreateDirectoryError { source: std::io::Error, path: PathBuf },
 }
 
-#[derive(Deserialize, Debug, Serialize)]
+/// The configuration of the riklet.
+#[derive(Deserialize, Debug, Serialize, PartialEq)]
 pub struct Configuration {
     pub runner: RuncConfiguration,
     pub manager: ImageManagerConfiguration,
@@ -68,8 +69,14 @@ impl Configuration {
 
     /// Load the configuration file
     /// If not exists, create it and return the default configuration
-    pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
-        let path = PathBuf::from("/etc/riklet").join("configuration.toml");
+    pub fn load(path: Option<PathBuf>) -> Result<Self, Box<dyn std::error::Error>> {
+
+        let path = if let Some(path) = path {
+            path
+        } else {
+            PathBuf::from("/etc/riklet").join("configuration.toml")
+        };
+
         let configuration = if !path.exists() {
             Configuration::create(&path)
         } else {
@@ -103,7 +110,6 @@ impl Configuration {
     }
 }
 
-/// Default implementation
 impl Default for Configuration {
 
     fn default() -> Self {
@@ -131,6 +137,40 @@ impl Default for Configuration {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::config::Configuration;
+    use uuid::Uuid;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_it_load_configuration() {
+        let config_id = format!("riklet-{}.toml", Uuid::new_v4());
+        let config_path = std::env::temp_dir()
+            .join(PathBuf::from(config_id));
+
+        let configuration = Configuration::load(Some(config_path))
+            .expect("Failed to load configuration");
+
+        assert_eq!(configuration, Configuration::default())
+    }
+
+    #[test]
+    fn test_it_create_configuration() {
+        let config_id = format!("riklet-{}.toml", Uuid::new_v4());
+        let config_path = std::env::temp_dir()
+            .join(PathBuf::from(config_id));
+
+        assert!(!&config_path.exists());
+
+        let configuration = Configuration::load(Some(config_path.clone()))
+            .expect("Failed to load configuration");
+
+        assert!(&config_path.exists());
+        assert_eq!(configuration, Configuration::default())
     }
 }
 

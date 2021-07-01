@@ -8,7 +8,7 @@ use tokio::process::Command;
 use std::process::Stdio;
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UmociConfiguration {
     pub debug: bool,
     pub command: Option<PathBuf>,

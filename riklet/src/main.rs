@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Riklet v{}", VERSION);
 
-    let config = Configuration::load()?;
+    let config = Configuration::load(None)?;
 
     config.bootstrap();
 

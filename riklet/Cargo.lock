@@ -476,6 +476,7 @@ dependencies = [
  "snafu",
  "tokio",
  "toml",
+ "uuid",
 ]
 
 [[package]]

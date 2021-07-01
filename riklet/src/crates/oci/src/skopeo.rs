@@ -9,7 +9,7 @@ use log::debug;
 use snafu::ensure;
 use serde::{Serialize, Deserialize};
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct SkopeoConfiguration {
     pub debug: bool,
     pub insecure_policy: bool,

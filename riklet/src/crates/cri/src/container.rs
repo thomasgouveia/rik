@@ -7,7 +7,7 @@ use snafu::ensure;
 use log::warn;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct RuncConfiguration {
     /// Ignore cgroup permission errors
     pub rootless: bool,
