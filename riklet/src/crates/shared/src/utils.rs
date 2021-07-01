@@ -4,6 +4,8 @@ use std::collections::hash_map::DefaultHasher;
 use std::fs::File;
 use flate2::read::GzDecoder;
 use tar::Archive;
+use rand::{thread_rng, Rng};
+use rand::distributions::Alphanumeric;
 
 /// Find a binary in the host PATH
 pub fn find_binary(binary: &str) -> Option<PathBuf> {
@@ -59,4 +61,12 @@ pub fn create_directory_if_not_exists(dir: &Option<PathBuf>) -> std::io::Result<
     }
 
     Ok(())
+}
+
+pub fn get_random_hash(size: usize) -> String {
+    thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(size)
+        .map(char::from)
+        .collect()
 }

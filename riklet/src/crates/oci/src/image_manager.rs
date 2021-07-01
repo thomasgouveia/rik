@@ -7,7 +7,7 @@ use crate::*;
 use std::path::PathBuf;
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct ImageManagerConfiguration {
     pub oci_manager: UmociConfiguration,
     pub image_puller: SkopeoConfiguration,

@@ -31,8 +31,9 @@ pub enum Error {
 }
 
 /// The configuration of the riklet.
-#[derive(Deserialize, Debug, Serialize, PartialEq)]
+#[derive(Deserialize, Debug, Serialize, PartialEq, Clone)]
 pub struct Configuration {
+    pub scheduler: String,
     pub runner: RuncConfiguration,
     pub manager: ImageManagerConfiguration,
 }
@@ -114,6 +115,7 @@ impl Default for Configuration {
 
     fn default() -> Self {
         Self {
+            scheduler: String::from("http://127.0.0.1:4995"),
             runner: RuncConfiguration {
                 debug: false,
                 rootless: false,
