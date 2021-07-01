@@ -7,7 +7,15 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-runner = { path = "crates/runner" }
-daemon = { path = "crates/daemon"}
-simple_logger = "1.11.0"
+proto = { path = "src/crates/proto", version = "0.1.0" }
+daemon = { path = "src/crates/daemon" }
 daemonize = "0.4.1"
+log = "0.4.14"
+simple_logger = "1.11.0"
+tonic = "0.4.3"
+prost = "0.7.0"
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3.15"
+serde = { version = "1.0", features = ["derive"] }
+tokio-stream = "0.1.6"
+async-trait = "0.1.50"

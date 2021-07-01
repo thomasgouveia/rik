@@ -110,26 +110,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "command"
-version = "0.1.0"
-dependencies = [
- "log",
-]
-
-[[package]]
 name = "daemon"
 version = "0.1.0"
-dependencies = [
- "futures-util",
- "log",
- "prost",
- "proto",
- "serde",
- "simple_logger",
- "tokio",
- "tokio-stream",
- "tonic",
-]
 
 [[package]]
 name = "daemonize"
@@ -711,18 +693,18 @@ dependencies = [
 name = "riklet"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "daemon",
  "daemonize",
- "runner",
- "simple_logger",
-]
-
-[[package]]
-name = "runner"
-version = "0.1.0"
-dependencies = [
- "command",
+ "futures-util",
  "log",
+ "prost",
+ "proto",
+ "serde",
+ "simple_logger",
+ "tokio",
+ "tokio-stream",
+ "tonic",
 ]
 
 [[package]]

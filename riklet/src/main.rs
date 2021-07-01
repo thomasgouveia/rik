@@ -1,13 +1,34 @@
-// use runner::image_manager::ImageManager;
-// use simple_logger::SimpleLogger;
 use std::process::{Command};
 use std::fs::File;
+use simple_logger::SimpleLogger;
+use log::LevelFilter;
+use futures_util::{stream, Stream};
+use proto::common::{InstanceMetric, ResourceStatus, WorkerMetric, WorkerStatus, Workload};
+use proto::worker as Worker;
+use proto::worker::worker_client::WorkerClient;
+use serde::{Deserialize, Serialize};
+use std::error::Error;
+use tonic::{transport::Channel, Request, Status, Streaming, Response};
+use tokio_stream::wrappers::ReceiverStream;
+use crate::riklet::Riklet;
+use std::sync::Arc;
 
-fn main() {
-    // SimpleLogger::new().init().unwrap();
-    // // The path should be set by the top level riklet module, this is just for test purposes.
-    // let mut im = ImageManager::new("/tmp/rik/riklet");
-    // let _image = im.pull_image("httpd:latest");
+mod riklet;
+mod traits;
+mod emitters;
 
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    SimpleLogger::new()
+        .with_level(LevelFilter::Off)
+        .with_module_level("riklet", LevelFilter::Info)
+        .with_module_level("riklet", LevelFilter::Debug)
+        .with_module_level("riklet", LevelFilter::Error)
+        .init()?;
 
+    let mut riklet = Riklet::bootstrap(String::from("http://127.0.0.1:4995")).await?;
+
+    riklet.accept().await?;
+
+    Ok(())
 }
