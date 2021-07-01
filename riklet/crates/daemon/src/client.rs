@@ -1,43 +1,47 @@
-use futures_util::stream;
+use futures_util::{stream, Stream};
 use log::{debug, error, info, warn, LevelFilter};
-use proto::common::{InstanceMetric, ResourceStatus, WorkerMetric, WorkerStatus};
+use proto::common::{InstanceMetric, ResourceStatus, WorkerMetric, WorkerStatus, Workload};
 use proto::worker as Worker;
 use proto::worker::worker_client::WorkerClient;
+use serde::{Deserialize, Serialize};
 use simple_logger::SimpleLogger;
-use tonic::{transport::Channel, Request, Status, Streaming};
+use std::error::Error;
+use tonic::{transport::Channel, Request, Status, Streaming, Response};
+use tokio_stream::wrappers::ReceiverStream;
 
-#[derive(Clone)]
-struct RikletClient {
-    client: WorkerClient<Channel>,
+pub async fn connect() -> Result<WorkerClient<Channel>, Box<dyn Error>> {
+    let client = WorkerClient::connect("http://127.0.0.1:4995").await?;
+    Ok(client)
 }
 
-impl RikletClient {
-    pub async fn connect() -> Result<Self, tonic::transport::Error> {
-        let client = WorkerClient::connect("http://127.0.0.1:8081").await?;
-        Ok(Self { client })
-    }
+pub async fn register(client: &mut WorkerClient<Channel>) -> Streaming<Workload> {
+    // sending request and waiting for workload
+    info!("Worker registration...");
+    let request = Request::new({});
+    client.register(request).await.unwrap().into_inner()
+}
 
-    pub async fn register(&mut self) -> Result<(), Status> {
-        // creating a new Request
-        let request = Request::new({});
-
-        // sending request and waiting for response
-        let mut stream = self.client.register(request).await?.into_inner();
-        info!("Waiting for workload");
-        while let res = stream.message().await {
-            info!("{:?}", res);
-        }
-        Ok(())
+pub async fn waiting_workloads(stream: &mut Streaming<Workload>) ->  Result<(), Box<dyn Error>> {
+    info!("Waiting for workloads...");
+    while let Some(workload) = stream.message().await? {
+        info!("{:?}", workload);
     }
+    Ok(())
+}
 
-    pub async fn send_status_updates(&mut self, status: Vec<WorkerStatus>) -> Result<(), Status> {
-        // creating a new Request
-        let request = Request::new(stream::iter(status.clone()));
-        // sending request and waiting for response
-        let response = self.client.send_status_updates(request).await?;
-        info!("RESPONSE={:?}", response);
-        Ok(())
-    }
+pub async fn send_status_updates(client: &mut WorkerClient<Channel>, status: Vec<WorkerStatus>) -> Result<(), Box<dyn Error>> {
+    // creating a new Request
+    let request = Request::new(stream::iter(status));
+
+    info!("Send status updates...");
+
+    // sending request and waiting for response
+    match client.send_status_updates(request).await {
+        Ok(response) => info!("{:?}", response.into_inner()),
+        Err(e) => error!("something went wrong: {:?}", e)
+    };
+
+    Ok(())
 }
 
 #[tokio::main]
@@ -51,12 +55,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init()
         .unwrap();
 
-    // worker registration
-    let mut client = RikletClient::connect().await?;
-    let mut register_client = client.clone();
-    tokio::spawn(async move {
-        register_client.register().await;
-    });
+    // worker connection
+    let mut client = connect().await?;
+    let mut client2 = connect().await?;
+    let mut stream = register(&mut client).await;
 
     let status = vec![
         WorkerStatus {
@@ -76,7 +78,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     // send status updates
-    client.send_status_updates(status).await?;
+    tokio::spawn(async move {
+        send_status_updates(&mut client2, status).await;
+    });
+
+    waiting_workloads(&mut stream).await;
 
     Ok(())
 }
