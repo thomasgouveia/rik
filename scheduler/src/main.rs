@@ -1,3 +1,5 @@
+mod config_parser;
+
 use env_logger::Env;
 use log::{error, info, debug};
 use proto::common::{WorkerStatus, Workload};
@@ -8,7 +10,7 @@ use rik_scheduler::{Controller, Worker, Send, SchedulerError, WorkloadInstance, 
 use proto::worker::worker_server::{Worker as WorkerClient, WorkerServer};
 use rik_scheduler::{Event, WorkloadChannelType};
 use std::default::Default;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, SocketAddrV4};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
@@ -16,6 +18,7 @@ use tonic::{transport::Server, Code, Request, Response, Status};
 use std::collections::{HashMap};
 use tokio::sync::mpsc::error::SendError;
 use rand::seq::SliceRandom;
+use crate::config_parser::{ConfigParser};
 
 #[derive(Debug, Clone)]
 pub struct GRPCService {
@@ -117,12 +120,12 @@ pub struct Manager {
     controller: Option<Controller>,
     worker_increment: u8,
     state: StateType,
-    expected_state: StateType
+    expected_state: StateType,
 }
 
 
 impl Manager {
-    async fn run() -> Result<Manager, Box<dyn std::error::Error>> {
+    async fn run(workers_listener: SocketAddrV4, controllers_listener: SocketAddrV4) -> Result<Manager, Box<dyn std::error::Error>> {
         let (sender, receiver) = channel::<Event>(1024);
         let mut instance = Manager {
             workers: Vec::new(),
@@ -132,21 +135,21 @@ impl Manager {
             state: HashMap::new(),
             expected_state: HashMap::new(),
         };
-        instance.run_workers_listener(sender.clone());
-        instance.run_controllers_listener(sender.clone());
+        instance.run_workers_listener(workers_listener, sender.clone());
+        instance.run_controllers_listener(controllers_listener, sender.clone());
         let channel_listener = instance.listen();
         channel_listener.await?;
         Ok(instance)
     }
 
-    fn run_workers_listener(&self, sender: Sender<Event>) {
+    fn run_workers_listener(&self, listener: SocketAddrV4, sender: Sender<Event>) {
         let server = WorkerServer::new(GRPCService::new(sender));
         tokio::spawn(async move {
             let server = Server::builder()
                 .add_service(server)
-                .serve("127.0.0.1:4995".parse().unwrap());
+                .serve(listener.into());
 
-            info!("Worker gRPC listening thread up");
+            info!("Worker gRPC listening on {}", listener);
 
             if let Err(e) = server.await {
                 error!("{}", e);
@@ -154,14 +157,14 @@ impl Manager {
         });
     }
 
-    fn run_controllers_listener(&self, sender: Sender<Event>) {
+    fn run_controllers_listener(&self, listener: SocketAddrV4, sender: Sender<Event>) {
         let server = ControllerServer::new(GRPCService::new(sender));
         tokio::spawn(async move {
             let server = Server::builder()
                 .add_service(server)
-                .serve("127.0.0.1:4996".parse().unwrap());
+                .serve(listener.into());
 
-            info!("Controller gRPC listening thread up");
+            info!("Controller gRPC listening on {}", listener);
 
             if let Err(e) = server.await {
                 error!("{}", e);
@@ -272,9 +275,10 @@ impl Manager {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
+    let config = ConfigParser::new()?;
+    env_logger::Builder::from_env(Env::default().default_filter_or(&config.verbosity_level)).init();
     info!("Starting up...");
-    let manager = Manager::run();
+    let manager = Manager::run(config.workers_endpoint, config.controller_endpoint);
     manager.await?;
     Ok(())
 }
@@ -289,7 +293,7 @@ mod tests {
         let (sender, mut receiver) = channel::<Event>(1024);
 
         let service = GRPCService {
-            sender: sender,
+            sender,
         };
 
         let mock_request = Request::new(());
