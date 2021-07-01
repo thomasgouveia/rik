@@ -1,117 +1,25 @@
 mod config_parser;
+mod state_manager;
+mod grpc;
 
 use env_logger::Env;
 use log::{error, info, debug};
-use proto::common::{WorkerStatus, Workload};
-use proto::controller::controller_server::{
-    Controller as ControllerClient, ControllerServer,
-};
-use rik_scheduler::{Controller, Worker, Send, SchedulerError, WorkloadInstance, StateType};
+use proto::common::{Workload};
+use rik_scheduler::{Controller, SchedulerError, WorkloadInstance, StateType, Worker};
 use proto::worker::worker_server::{Worker as WorkerClient, WorkerServer};
 use rik_scheduler::{Event, WorkloadChannelType};
 use std::default::Default;
 use std::net::{SocketAddr, SocketAddrV4};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_stream::wrappers::ReceiverStream;
-use tokio_stream::StreamExt;
-use tonic::{transport::Server, Code, Request, Response, Status};
 use std::collections::{HashMap};
 use tokio::sync::mpsc::error::SendError;
 use rand::seq::SliceRandom;
 use crate::config_parser::{ConfigParser};
+use crate::grpc::GRPCService;
+use tonic::transport::Server;
+use proto::controller::controller_server::ControllerServer;
 
-#[derive(Debug, Clone)]
-pub struct GRPCService {
-    /// Channel used in order to communicate with the main thread
-    /// In the case the worker doesn't know its ID yet, put 0 in the first
-    /// item of the tuple
-    sender: Sender<Event>,
-}
-
-impl GRPCService {
-    fn new(sender: Sender<Event>) -> GRPCService {
-        GRPCService {
-            sender
-        }
-    }
-}
-
-#[tonic::async_trait]
-impl Send<Event> for GRPCService {
-    async fn send(&self, data: Event) -> Result<(), Status> {
-        self.sender
-            .send(data)
-            .await
-            .map_err(|e| {
-                error!("Failed to send message from gRPCService to Manager, error: {}", e);
-                Status::new(
-                    Code::Unavailable,
-                    "We cannot process your request at this time"
-                )
-            })
-
-    }
-}
-
-#[tonic::async_trait]
-impl WorkerClient for GRPCService {
-    type RegisterStream = ReceiverStream<WorkloadChannelType>;
-
-    async fn register(
-        &self,
-        _request: Request<()>,
-    ) -> Result<Response<Self::RegisterStream>, Status> {
-        // Streaming channel that sends workloads
-        let (stream_tx, stream_rx) = channel::<WorkloadChannelType>(1024);
-        let addr = _request.remote_addr().expect("No remote address found");
-        self.send(Event::Register(stream_tx, addr)).await?;
-
-        Ok(Response::new(ReceiverStream::new(stream_rx)))
-    }
-
-    /**
-     * For now we can only fetch a single status updates, as `try_next`
-     * isn't blocking! :(
-     * We should make this update of data blocking, so we can receive any status
-     * update
-     *
-     **/
-    async fn send_status_updates(
-        &self,
-        _request: Request<tonic::Streaming<WorkerStatus>>,
-    ) -> Result<Response<()>, Status> {
-        let mut stream = _request.into_inner();
-
-        while let Some(data) = stream.try_next().await? {
-            info!("Getting some info");
-            info!("{:#?}", data);
-        }
-
-        Ok(Response::new(()))
-    }
-}
-
-#[tonic::async_trait]
-impl ControllerClient for GRPCService {
-    async fn schedule_instance(&self, _request: Request<Workload>) -> Result<Response<()>, Status> {
-        self.send(Event::ScheduleRequest(_request.get_ref().clone())).await?;
-
-        Ok(Response::new(()))
-    }
-
-    type GetStatusUpdatesStream = ReceiverStream<Result<WorkerStatus, Status>>;
-
-    async fn get_status_updates(
-        &self,
-        _request: Request<()>,
-    ) -> Result<Response<Self::GetStatusUpdatesStream>, Status> {
-        let (stream_tx, stream_rx) = channel::<Result<WorkerStatus, Status>>(1024);
-        let addr = _request.remote_addr().expect("No remote address found");
-        self.send(Event::Subscribe(stream_tx, addr)).await?;
-
-        Ok(Response::new(ReceiverStream::new(stream_rx)))
-    }
-}
 
 #[derive(Debug)]
 pub struct Manager {
@@ -211,7 +119,6 @@ impl Manager {
     }
 
     async fn schedule(&mut self, workload: WorkloadInstance) -> Result<(), SendError<WorkloadChannelType>> {
-        debug!("[schedule] {:#?}", workload.get_worker_id());
         if !workload.has_worker() {
             error!("Tried to schedule workload while no worker assigned");
             return Ok(());
@@ -286,6 +193,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tonic::Request;
 
     #[tokio::test]
     #[should_panic(expected = "No remote address found")]
