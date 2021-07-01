@@ -288,9 +288,7 @@ mod tests {
     async fn test_grpc_service_register_should_panic() -> () {
         let (sender, mut receiver) = channel::<Event>(1024);
 
-        let service = GRPCService {
-            sender: sender,
-        };
+        let service = GRPCService::new(sender);
 
         let mock_request = Request::new(());
         service.register(mock_request).await.unwrap();
