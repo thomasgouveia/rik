@@ -1,3 +1,13 @@
+// use runner::image_manager::ImageManager;
+// use simple_logger::SimpleLogger;
+use std::process::{Command};
+use std::fs::File;
+
 fn main() {
-    println!("Hello, Riklet !");
+    // SimpleLogger::new().init().unwrap();
+    // // The path should be set by the top level riklet module, this is just for test purposes.
+    // let mut im = ImageManager::new("/tmp/rik/riklet");
+    // let _image = im.pull_image("httpd:latest");
+
+
 }
