@@ -1,6 +1,6 @@
 use std::hash::Hash;
 use shared::utils::generate_hash;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 
 #[derive(Debug, Hash)]
 pub struct Image {

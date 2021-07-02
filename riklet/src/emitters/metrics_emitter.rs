@@ -15,12 +15,13 @@ impl EventEmitter<Vec<WorkerStatus>, WorkerClient<Channel>> for MetricsEmitter {
         // creating a new Request
         let request = Request::new(stream::iter(event));
 
-        log::info!("Update metrics");
-
         // sending request and waiting for response
         match client.send_status_updates(request).await {
-            Ok(response) => response.into_inner(),
-            Err(e) => log::error!("something went wrong: {:?}", e)
+            Ok(response) => {
+                log::trace!("Metrics was sent successfully.");
+                response.into_inner()
+            },
+            Err(e) => log::error!("An error occured when trying to send metrics: {:?}", e)
         };
 
         Ok(())

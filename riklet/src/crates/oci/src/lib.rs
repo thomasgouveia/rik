@@ -1,7 +1,4 @@
-use crate::image::Image;
-use std::collections::HashMap;
-use log::{info, error};
-use crate::umoci::Umoci;
+use log::{error};
 use snafu::Snafu;
 use async_trait::async_trait;
 use std::iter::FromIterator;

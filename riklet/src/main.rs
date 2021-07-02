@@ -1,37 +1,28 @@
-use simple_logger::SimpleLogger;
-use log::LevelFilter;
-use crate::riklet::Riklet;
-
 mod structs;
-mod riklet;
+mod core;
 mod traits;
 mod emitters;
-
 mod config;
 mod constants;
 
-use config::Configuration;
-
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+use crate::core::Riklet;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // If the process doesn't have root privileges, exit and display error.
+    if !nix::unistd::Uid::effective().is_root() {
+        log::error!("Riklet must run with root privileges.");
+        std::process::exit(1);
+    }
 
-    SimpleLogger::new()
-        .with_module_level("h2", LevelFilter::Off)
-        .with_module_level("tracing", LevelFilter::Off)
-        .with_module_level("tokio_util", LevelFilter::Off)
-        .with_module_level("tonic", LevelFilter::Off)
-        .with_module_level("tokio", LevelFilter::Off)
-        .with_module_level("hyper", LevelFilter::Off)
-        .with_module_level("want", LevelFilter::Off)
-        .with_module_level("mio", LevelFilter::Off)
-        .with_module_level("tower", LevelFilter::Off)
-        .init()?;
-
-    let mut riklet = Riklet::bootstrap().await?;
-
-    log::info!("Riklet v{}", VERSION);
+    let mut riklet = match Riklet::bootstrap().await {
+        Ok(instance) => instance,
+        Err(error) => {
+            // if there is an error during the boostrap process of the riklet, log & error
+            log::error!("An error occured during the bootstraping process of the Riklet. Details : {}", error.to_string());
+            std::process::exit(2);
+        }
+    };
 
     riklet.accept().await?;
 

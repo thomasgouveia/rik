@@ -70,7 +70,7 @@ impl Umoci {
 
         args.push(bundle_path.clone());
 
-        self.exec(&args).await;
+        self.exec(&args).await?;
 
         Ok(bundle_path)
     }

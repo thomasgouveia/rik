@@ -47,7 +47,7 @@ impl WorkloadDefinition {
         get_random_hash(15)
     }
 
-    pub fn get_containers(self) -> Vec<Container> {
-        self.spec.containers
+    pub fn get_containers(&self) -> &Vec<Container> {
+        &self.spec.containers
     }
 }

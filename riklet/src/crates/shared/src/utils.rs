@@ -35,7 +35,7 @@ pub fn unpack(archive: &str, dest: &PathBuf) -> std::io::Result<()> {
         .expect(&format!("Unable to unzip the archive {}", archive)[..]);
     let tar = GzDecoder::new(tar_gz);
     let mut archive = Archive::new(tar);
-    archive.unpack(dest);
+    archive.unpack(dest).unwrap();
     Ok(())
 }
 

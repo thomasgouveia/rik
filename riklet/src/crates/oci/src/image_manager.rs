@@ -1,7 +1,7 @@
 use crate::image::Image;
 use std::collections::HashMap;
 use crate::skopeo::{Skopeo, SkopeoConfiguration};
-use log::{info, error, debug};
+use log::{info, debug};
 use crate::umoci::{Umoci, UmociConfiguration, UnpackArgs};
 use crate::*;
 use std::path::PathBuf;

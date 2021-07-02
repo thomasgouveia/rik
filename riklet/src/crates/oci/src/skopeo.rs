@@ -88,7 +88,7 @@ impl Skopeo {
 
         args.push(image_pull_path.clone());
 
-        self.exec(&args).await;
+        self.exec(&args).await?;
 
         let splitted = image_pull_path.split(":").collect::<Vec<&str>>();
         Ok(String::from(*splitted.get(1).unwrap()))

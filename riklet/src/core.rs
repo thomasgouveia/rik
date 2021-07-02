@@ -1,25 +1,17 @@
-use futures_util::{stream, Stream};
-use log::{debug, error, info, warn, LevelFilter};
-use proto::common::{InstanceMetric, ResourceStatus, WorkerMetric, WorkerStatus, Workload};
-use proto::worker as Worker;
+use proto::common::{InstanceMetric, WorkerMetric, WorkerStatus, Workload, WorkerRegistration};
 use proto::worker::worker_client::WorkerClient;
-use serde::{Deserialize, Serialize};
-use simple_logger::SimpleLogger;
 use std::error::Error;
-use tonic::{transport::Channel, Request, Status, Streaming, Response};
-use tokio_stream::wrappers::ReceiverStream;
+use tonic::{transport::Channel, Request, Streaming};
 use crate::emitters::metrics_emitter::MetricsEmitter;
 use crate::traits::EventEmitter;
 use std::time::Duration;
 use crate::config::Configuration;
 use oci::image_manager::ImageManager;
 use cri::container::{Runc, CreateArgs};
-use crate::structs::{WorkloadDefinition, Container};
+use crate::structs::{WorkloadDefinition};
 use std::path::PathBuf;
-use uuid::Uuid;
 use cri::console::ConsoleSocket;
-use shared::utils::get_random_hash;
-use std::sync::Arc;
+use clap::crate_version;
 
 
 #[derive(Debug)]
@@ -33,19 +25,35 @@ pub struct Riklet {
 
 impl Riklet {
 
+    /// Display a banner
+    fn banner() {
+        println!(r#"
+        ______ _____ _   __ _      _____ _____
+        | ___ \_   _| | / /| |    |  ___|_   _|
+        | |_/ / | | | |/ / | |    | |__   | |
+        |    /  | | |    \ | |    |  __|  | |
+        | |\ \ _| |_| |\  \| |____| |___  | |
+        \_| \_|\___/\_| \_/\_____/\____/  \_/
+        "#);
+    }
+
     /// Connect to the Scheduler gRPC API
     pub async fn bootstrap() -> Result<Self, Box<dyn Error>> {
 
-        let config = Configuration::load(None)?;
+        Riklet::banner();
+
+        let config = Configuration::load()?;
         config.bootstrap()?;
 
-        let mut client = WorkerClient::connect(config.scheduler.clone()).await?;
-        debug!("gRPC WorkerClient connected.");
+        let mut client = WorkerClient::connect(config.master_ip.clone()).await?;
+        log::debug!("gRPC WorkerClient connected.");
 
-        let request = Request::new({});
-        let stream = client.register(request).await.unwrap().into_inner();
+        let request = Request::new(WorkerRegistration {
+            hostname: "node".to_string(),
+        },);
+        let stream = client.register(request).await?.into_inner();
 
-        info!("Registration success");
+        log::trace!("Registration success");
 
         let container_runtime = Runc::new(config.runner.clone())?;
         let image_manager = ImageManager::new(config.manager.clone())?;
@@ -59,9 +67,9 @@ impl Riklet {
         })
     }
 
-    pub async fn handle_workload(&mut self, workload: WorkloadDefinition) -> Result<(), Box<dyn Error>> {
+    pub async fn handle_workload(&mut self, workload: &WorkloadDefinition) -> Result<(), Box<dyn Error>> {
         let workload_uuid = workload.get_uuid();
-        for container in &workload.spec.containers {
+        for container in workload.get_containers() {
             let container_uuid = container.get_uuid();
             let image = &self
                 .image_manager
@@ -78,12 +86,12 @@ impl Riklet {
                         Box::leak(Box::new(stream));
                     },
                     Err(err) => {
-                        error!("Receive PTY master error : {:?}", err)
+                        log::error!("Receive PTY master error : {:?}", err)
                     }
                 }
             });
 
-            let id = format!("{}-{}-{}-{}", workload.name, container.name, uuid, container_uuid);
+            let id = format!("{}-{}-{}-{}", workload.name, container.name, workload_uuid, container_uuid);
 
             &self.container_runtime.run(&id[..], &image.bundle.as_ref().unwrap(), Some(&CreateArgs {
                 pid_file: None,
@@ -117,15 +125,15 @@ impl Riklet {
                             metrics: "{}".to_string(),
                         })),
                     },
-                ]).await;
+                ]).await.unwrap();
                 tokio::time::sleep(Duration::from_millis(15000)).await;
             }
         });
 
-        info!("Riklet is ready to accept connections.");
+        log::info!("Riklet (v{}) is ready to accept connections.", crate_version!());
         while let Some(workload) = &self.stream.message().await? {
             let workload_definition: WorkloadDefinition = serde_json::from_str(&workload.definition[..]).unwrap();
-            &self.handle_workload(workload_definition).await;
+            &self.handle_workload(&workload_definition).await;
         }
         Ok(())
     }

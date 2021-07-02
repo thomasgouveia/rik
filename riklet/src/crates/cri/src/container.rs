@@ -4,7 +4,6 @@ use std::time::Duration;
 use tokio::process::Command;
 use std::process::Stdio;
 use snafu::ensure;
-use log::warn;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq, Eq)]
