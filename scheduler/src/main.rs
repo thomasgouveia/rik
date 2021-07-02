@@ -5,7 +5,7 @@ use env_logger::Env;
 use log::{error, info, debug};
 use proto::common::{Workload};
 use rik_scheduler::{Controller, SchedulerError, WorkloadInstance, StateType, Worker};
-use proto::worker::worker_server::{Worker as WorkerClient, WorkerServer};
+use proto::worker::worker_server::{WorkerServer};
 use rik_scheduler::{Event, WorkloadChannelType};
 use std::default::Default;
 use std::net::{SocketAddr, SocketAddrV4};

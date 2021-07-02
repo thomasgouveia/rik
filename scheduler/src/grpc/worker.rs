@@ -7,7 +7,7 @@ use crate::grpc::GRPCService;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 use proto::worker::worker_server::{Worker as WorkerClient};
-use proto::common::{WorkerStatus};
+use proto::common::{WorkerStatus, WorkerRegistration};
 
 #[tonic::async_trait]
 impl WorkerClient for GRPCService {
@@ -15,7 +15,7 @@ impl WorkerClient for GRPCService {
 
     async fn register(
         &self,
-        _request: Request<()>,
+        _request: Request<WorkerRegistration>,
     ) -> Result<Response<Self::RegisterStream>, Status> {
         // Streaming channel that sends workloads
         let (stream_tx, stream_rx) = channel::<WorkloadChannelType>(1024);
