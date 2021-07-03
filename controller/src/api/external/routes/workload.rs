@@ -69,15 +69,23 @@ pub fn create(
         &name,
         &serde_json::to_string(&workload).unwrap(),
     ) {
+        let workload_id: OnlyId = OnlyId {
+            id: connection.last_insert_rowid() as usize,
+        };
         logger
             .send(LoggingChannel {
-                message: String::from("Workload successfully created"),
+                message: String::from(format!(
+                    "Workload {} successfully created",
+                    workload_id.id
+                )),
                 log_type: LogType::Log,
             })
             .unwrap();
-        Ok(tiny_http::Response::from_string(content)
-            .with_header(tiny_http::Header::from_str("Content-Type: application/json").unwrap())
-            .with_status_code(tiny_http::StatusCode::from(200)))
+        Ok(
+            tiny_http::Response::from_string(serde_json::to_string(&workload_id).unwrap())
+                .with_header(tiny_http::Header::from_str("Content-Type: application/json").unwrap())
+                .with_status_code(tiny_http::StatusCode::from(200)),
+        )
     } else {
         logger
             .send(LoggingChannel {
