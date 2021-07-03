@@ -1,4 +1,4 @@
-use proto::common::{InstanceMetric, WorkerMetric, WorkerStatus, Workload, WorkerRegistration};
+use proto::common::{WorkerMetric, WorkerStatus, Workload, WorkerRegistration};
 use proto::worker::worker_client::WorkerClient;
 use std::error::Error;
 use tonic::{transport::Channel, Request, Streaming};
@@ -16,6 +16,7 @@ use clap::crate_version;
 
 #[derive(Debug)]
 pub struct Riklet {
+    hostname: String,
     config: Configuration,
     client: WorkerClient<Channel>,
     stream: Streaming<Workload>,
@@ -58,7 +59,7 @@ impl Riklet {
 
         // Register this node to the master
         let request = Request::new(WorkerRegistration {
-            hostname,
+            hostname: hostname.clone(),
         });
         let stream = client.register(request).await?.into_inner();
 
@@ -70,6 +71,7 @@ impl Riklet {
         let image_manager = ImageManager::new(config.manager.clone())?;
 
         Ok(Self {
+            hostname,
             container_runtime,
             image_manager,
             config,
@@ -119,12 +121,13 @@ impl Riklet {
 
     pub async fn accept(&mut self) ->  Result<(), Box<dyn Error>> {
         let client = self.client.clone();
-
+        let hostname = self.hostname.clone();
         tokio::spawn(async move {
             loop {
                 let node_metric = node_metrics::Metrics::new();
                 MetricsEmitter::emit_event(client.clone(), vec![
                     WorkerStatus {
+                        identifier: hostname.clone(),
                         status: Some(proto::common::worker_status::Status::Worker(WorkerMetric {
                             status: 2,
                             metrics: node_metric.to_json().unwrap(),
