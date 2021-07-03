@@ -18,6 +18,7 @@ use crate::config_parser::{ConfigParser};
 use crate::grpc::GRPCService;
 use tonic::transport::Server;
 use proto::controller::controller_server::ControllerServer;
+use tonic::Status;
 
 
 #[derive(Debug)]
@@ -83,7 +84,7 @@ impl Manager {
         while let Some(e) = &self.channel.recv().await {
             match e {
                 Event::Register(channel, addr, hostname) => {
-                    self.register(channel.clone(), addr.clone(), hostname.clone())?
+                    self.register(channel.clone(), addr.clone(), hostname.clone()).await?
                 },
                 Event::ScheduleRequest(workload) => {
                     debug!("New workload definition received to schedule {}", workload.instance_id);
@@ -111,15 +112,20 @@ impl Manager {
         self.workers.iter_mut().find(|worker| worker.hostname.eq(hostname))
     }
 
-    fn register(&mut self, channel: Sender<WorkloadChannelType>, addr: SocketAddr, hostname: String) -> Result<(), SchedulerError> {
+    async fn register(&mut self, channel: Sender<WorkloadChannelType>, addr: SocketAddr, hostname: String) -> Result<(), SchedulerError> {
         if let Some(worker) = self.get_worker_by_hostname(&hostname) {
+            if !worker.channel.is_closed() {
+                error!("New worker tried to register with an already taken hostname: {}", hostname);
+                channel.send(Err(Status::already_exists("Worker with this hostname already exist"))).await;
+                return Ok(());
+            }
             info!("Worker {} is back ready", hostname);
             worker.set_channel(channel);
         } else {
             let worker = Worker::new(self.get_next_id()?, channel, addr, hostname);
             info!(
-                "Worker with ID {} is now registered, ip: {}, hostname: {}",
-                worker.id, worker.addr, worker.hostname
+                "Worker {} is now registered, ip: {}",
+                worker.addr, worker.hostname
             );
             self.workers.push(worker);
         }
