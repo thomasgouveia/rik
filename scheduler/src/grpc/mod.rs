@@ -1,11 +1,11 @@
-mod worker;
 mod controller;
+mod worker;
 
-use tokio::sync::mpsc::Sender;
+use log::error;
 use rik_scheduler::Event;
-use tonic::{Status, Code};
-use log::{error};
-use rik_scheduler::{Send};
+use rik_scheduler::Send;
+use tokio::sync::mpsc::Sender;
+use tonic::{Code, Status};
 
 #[derive(Debug, Clone)]
 pub struct GRPCService {
@@ -17,25 +17,22 @@ pub struct GRPCService {
 
 impl GRPCService {
     pub fn new(sender: Sender<Event>) -> GRPCService {
-        GRPCService {
-            sender
-        }
+        GRPCService { sender }
     }
 }
 
 #[tonic::async_trait]
 impl Send<Event> for GRPCService {
     async fn send(&self, data: Event) -> Result<(), Status> {
-        self.sender
-            .send(data)
-            .await
-            .map_err(|e| {
-                error!("Failed to send message from gRPCService to Manager, error: {}", e);
-                Status::new(
-                    Code::Unavailable,
-                    "We cannot process your request at this time"
-                )
-            })
-
+        self.sender.send(data).await.map_err(|e| {
+            error!(
+                "Failed to send message from gRPCService to Manager, error: {}",
+                e
+            );
+            Status::new(
+                Code::Unavailable,
+                "We cannot process your request at this time",
+            )
+        })
     }
 }

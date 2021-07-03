@@ -1,10 +1,10 @@
 use proto::common::{WorkerStatus, Workload};
+use std::collections::HashMap;
+use std::error::Error;
+use std::fmt;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::Sender;
 use tonic::Status;
-use std::error::Error;
-use std::fmt;
-use std::collections::HashMap;
 
 /// Define the structure of message send through the channel between
 /// the manager and a worker
@@ -31,6 +31,7 @@ pub enum Event {
 pub enum SchedulerError {
     ClusterFull,
     RegistrationFailed(String),
+    ClientDisconnected,
 }
 
 impl fmt::Display for SchedulerError {
@@ -40,7 +41,6 @@ impl fmt::Display for SchedulerError {
 }
 
 impl Error for SchedulerError {}
-
 
 #[derive(Debug)]
 pub struct Controller {
@@ -87,8 +87,18 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub fn new(id: u8, channel: Sender<WorkloadChannelType>, addr: SocketAddr, hostname: String) -> Worker {
-        Worker { id, channel, addr, hostname }
+    pub fn new(
+        id: u8,
+        channel: Sender<WorkloadChannelType>,
+        addr: SocketAddr,
+        hostname: String,
+    ) -> Worker {
+        Worker {
+            id,
+            channel,
+            addr,
+            hostname,
+        }
     }
 
     pub fn set_channel(&mut self, sender: Sender<WorkloadChannelType>) {
@@ -125,7 +135,7 @@ impl WorkloadInstance {
     pub fn has_worker(&self) -> bool {
         match self.worker_id {
             Some(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -141,4 +151,3 @@ impl WorkloadInstance {
         self.workload
     }
 }
-
