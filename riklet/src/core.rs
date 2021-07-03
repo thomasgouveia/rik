@@ -122,19 +122,12 @@ impl Riklet {
 
         tokio::spawn(async move {
             loop {
+                let node_metric = node_metrics::Metrics::new();
                 MetricsEmitter::emit_event(client.clone(), vec![
-                    WorkerStatus {
-                        status: Some(proto::common::worker_status::Status::Instance(
-                            InstanceMetric {
-                                status: 2,
-                                metrics: "{}".to_string(),
-                            },
-                        )),
-                    },
                     WorkerStatus {
                         status: Some(proto::common::worker_status::Status::Worker(WorkerMetric {
                             status: 2,
-                            metrics: "{}".to_string(),
+                            metrics: node_metric.to_json().unwrap(),
                         })),
                     },
                 ]).await.unwrap();
