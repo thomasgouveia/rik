@@ -4,8 +4,12 @@ package common;
 
 // Simple WorkLoad description
 message Workload {
-    string instance_id = 1;
-    string definition = 2;
+  uint32 instance_id = 1;
+  string definition = 2;
+}
+
+message WorkerRegistration {
+  string hostname = 1;
 }
 
 enum ResourceStatus {
@@ -30,8 +34,8 @@ message InstanceMetric {
 
 // Definition of metrics send by node
 message WorkerStatus {
- oneof status {
-       InstanceMetric instance = 1;
-       WorkerMetric worker = 2;
- }
+  oneof status {
+    InstanceMetric instance = 1;
+    WorkerMetric worker = 2;
+  }
 }
