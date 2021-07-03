@@ -50,8 +50,6 @@ impl Riklet {
 
         // Load the configuration
         let config = Configuration::load()?;
-        // Create directories and files used by Riklet
-        config.bootstrap()?;
 
         // Connect to the master node scheduler
         let mut client = WorkerClient::connect(config.master_ip.clone()).await?;

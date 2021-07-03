@@ -126,6 +126,8 @@ impl Configuration {
 
         debug!("Loaded configuration from file {}", path.display());
 
+        configuration.bootstrap()?;
+
         Ok(configuration)
     }
 
