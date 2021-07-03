@@ -117,9 +117,11 @@ impl Riklet {
         Ok(())
     }
 
-    pub async fn accept(&mut self) ->  Result<(), Box<dyn Error>> {
+    /// Run the metrics updater
+    fn start_metrics_updater(&self) {
         let client = self.client.clone();
         let hostname = self.hostname.clone();
+
         tokio::spawn(async move {
             loop {
                 let node_metric = node_metrics::Metrics::new();
@@ -135,8 +137,14 @@ impl Riklet {
                 tokio::time::sleep(Duration::from_millis(15000)).await;
             }
         });
+    }
 
+    /// Wait for workloads
+    pub async fn accept(&mut self) ->  Result<(), Box<dyn Error>> {
         log::info!("Riklet (v{}) is running.", crate_version!());
+        // Start the metrics updater
+        &self.start_metrics_updater();
+
         while let Some(workload) = &self.stream.message().await? {
             let workload_definition: WorkloadDefinition = serde_json::from_str(&workload.definition[..]).unwrap();
             &self.handle_workload(&workload_definition).await;
