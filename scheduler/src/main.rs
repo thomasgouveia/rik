@@ -82,8 +82,8 @@ impl Manager {
     async fn listen(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         while let Some(e) = &self.channel.recv().await {
             match e {
-                Event::Register(channel, addr) => {
-                    self.register(channel.clone(), addr.clone())?
+                Event::Register(channel, addr, hostname) => {
+                    self.register(channel.clone(), addr.clone(), hostname.clone())?
                 },
                 Event::ScheduleRequest(workload) => {
                     debug!("New workload definition received to schedule {}", workload.instance_id);
@@ -107,13 +107,22 @@ impl Manager {
         }
     }
 
-    fn register(&mut self, channel: Sender<WorkloadChannelType>, addr: SocketAddr) -> Result<(), SchedulerError> {
-        let worker = Worker::new(self.get_next_id()?, channel, addr);
-        info!(
-            "Worker with ID {} is now registered, ip: {}",
-            worker.id, worker.addr
-        );
-        self.workers.push(worker);
+    fn get_worker_by_hostname(&mut self, hostname: &String) -> Option<&mut Worker> {
+        self.workers.iter_mut().find(|worker| worker.hostname.eq(hostname))
+    }
+
+    fn register(&mut self, channel: Sender<WorkloadChannelType>, addr: SocketAddr, hostname: String) -> Result<(), SchedulerError> {
+        if let Some(worker) = self.get_worker_by_hostname(&hostname) {
+            info!("Worker {} is back ready", hostname);
+            worker.set_channel(channel);
+        } else {
+            let worker = Worker::new(self.get_next_id()?, channel, addr, hostname);
+            info!(
+                "Worker with ID {} is now registered, ip: {}, hostname: {}",
+                worker.id, worker.addr, worker.hostname
+            );
+            self.workers.push(worker);
+        }
         Ok(())
     }
 

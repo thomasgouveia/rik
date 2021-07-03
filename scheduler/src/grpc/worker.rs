@@ -20,7 +20,8 @@ impl WorkerClient for GRPCService {
         // Streaming channel that sends workloads
         let (stream_tx, stream_rx) = channel::<WorkloadChannelType>(1024);
         let addr = _request.remote_addr().expect("No remote address found");
-        self.send(Event::Register(stream_tx, addr)).await?;
+        let body = _request.get_ref().hostname.clone();
+        self.send(Event::Register(stream_tx, addr, body)).await?;
 
         Ok(Response::new(ReceiverStream::new(stream_rx)))
     }

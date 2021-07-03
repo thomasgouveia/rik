@@ -18,7 +18,7 @@ pub type StateType = HashMap<u32, WorkloadInstance>;
 pub enum Event {
     /// Workers register to the Scheduler so they can serve
     /// the cluster
-    Register(Sender<WorkloadChannelType>, SocketAddr),
+    Register(Sender<WorkloadChannelType>, SocketAddr, String),
     /// Controller can send workload, we use the verb Schedule to describe
     /// this event
     ScheduleRequest(Workload),
@@ -76,16 +76,23 @@ pub struct Worker {
     ///     id: 0,
     ///     channel: sender,
     ///     addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
+    ///     hostname: "debian-test".to_string()
     /// };
     /// ```
     pub channel: Sender<WorkloadChannelType>,
     /// Remote addr of the worker
     pub addr: SocketAddr,
+    /// Worker hostname, must be unique
+    pub hostname: String,
 }
 
 impl Worker {
-    pub fn new(id: u8, channel: Sender<WorkloadChannelType>, addr: SocketAddr) -> Worker {
-        Worker { id, channel, addr }
+    pub fn new(id: u8, channel: Sender<WorkloadChannelType>, addr: SocketAddr, hostname: String) -> Worker {
+        Worker { id, channel, addr, hostname }
+    }
+
+    pub fn set_channel(&mut self, sender: Sender<WorkloadChannelType>) {
+        self.channel = sender;
     }
 }
 
