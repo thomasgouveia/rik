@@ -37,25 +37,32 @@ impl Riklet {
         "#);
     }
 
-    /// Connect to the Scheduler gRPC API
+    /// Bootstrap a Riklet in order to run properly.
     pub async fn bootstrap() -> Result<Self, Box<dyn Error>> {
 
+        // Display the banner, just for fun :D
         Riklet::banner();
 
+        // Load the configuration
         let config = Configuration::load()?;
+        // Create directories and files used by Riklet
         config.bootstrap()?;
 
+        // Connect to the master node scheduler
         let mut client = WorkerClient::connect(config.master_ip.clone()).await?;
         log::debug!("gRPC WorkerClient connected.");
 
+        // Register this node to the master
         let request = Request::new(WorkerRegistration {
             hostname: "node".to_string(),
-        },);
+        });
         let stream = client.register(request).await?.into_inner();
 
         log::trace!("Registration success");
 
+        // Initialize the container runtime
         let container_runtime = Runc::new(config.runner.clone())?;
+        // Initialize the image manager
         let image_manager = ImageManager::new(config.manager.clone())?;
 
         Ok(Self {
@@ -67,6 +74,7 @@ impl Riklet {
         })
     }
 
+    /// Handle a workload (eg CREATE, UPDATE, DELETE, READ)
     pub async fn handle_workload(&mut self, workload: &WorkloadDefinition) -> Result<(), Box<dyn Error>> {
         let workload_uuid = workload.get_uuid();
         for container in workload.get_containers() {
@@ -74,12 +82,13 @@ impl Riklet {
             let image = &self
                 .image_manager
                 .pull(&container.image[..])
-                .await.unwrap();
+                .await?;
 
+            // New console socket for the container
             let socket_path = PathBuf::from(
                 format!("/tmp/{}-{}", container.name, container_uuid));
+            let console_socket = ConsoleSocket::new(&socket_path)?;
 
-            let console_socket = ConsoleSocket::new(&socket_path).unwrap();
             tokio::spawn(async move {
                 match console_socket.get_listener().as_ref().unwrap().accept().await {
                     Ok((stream, _socket_addr)) => {
@@ -92,14 +101,13 @@ impl Riklet {
             });
 
             let id = format!("{}-{}-{}-{}", workload.name, container.name, workload_uuid, container_uuid);
-
             &self.container_runtime.run(&id[..], &image.bundle.as_ref().unwrap(), Some(&CreateArgs {
                 pid_file: None,
                 console_socket: Some(socket_path),
                 no_pivot: false,
                 no_new_keyring: false,
                 detach: true
-            })).await.unwrap();
+            })).await?;
         }
 
         Ok(())
