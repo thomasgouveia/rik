@@ -39,6 +39,10 @@ impl Riklet {
 
     /// Bootstrap a Riklet in order to run properly.
     pub async fn bootstrap() -> Result<Self, Box<dyn Error>> {
+        // Get the hostname of the host to register
+        let hostname = gethostname::gethostname()
+            .into_string()
+            .unwrap();
 
         // Display the banner, just for fun :D
         Riklet::banner();
@@ -54,7 +58,7 @@ impl Riklet {
 
         // Register this node to the master
         let request = Request::new(WorkerRegistration {
-            hostname: "node".to_string(),
+            hostname,
         });
         let stream = client.register(request).await?.into_inner();
 
@@ -138,7 +142,7 @@ impl Riklet {
             }
         });
 
-        log::info!("Riklet (v{}) is ready to accept connections.", crate_version!());
+        log::info!("Riklet (v{}) is running.", crate_version!());
         while let Some(workload) = &self.stream.message().await? {
             let workload_definition: WorkloadDefinition = serde_json::from_str(&workload.definition[..]).unwrap();
             &self.handle_workload(&workload_definition).await;

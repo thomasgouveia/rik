@@ -33,3 +33,4 @@ toml="0.5.8"
 uuid = { version = "0.8", features = ["v4"] }
 clap = "3.0.0-beta.2"
 nix="0.21.0"
+gethostname = "0.2.1"
