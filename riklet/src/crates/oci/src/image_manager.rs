@@ -1,4 +1,4 @@
-use crate::image::{Image, ImagePullPolicy};
+use crate::image::{Image};
 use crate::skopeo::{Skopeo, SkopeoConfiguration};
 use log::{info, debug};
 use crate::umoci::{Umoci, UmociConfiguration, UnpackArgs};
@@ -49,13 +49,7 @@ impl ImageManager {
         let bundle_directory = &self.config.oci_manager.bundles_directory.clone().unwrap();
         let mut image = Image::from(image_str);
 
-        // TODO : improve image management (refactor etc)
-        let should_pull_image: bool = match image.pull_policy {
-            ImagePullPolicy::IfNotPresent => !image.exists(&bundle_directory.clone()),
-            ImagePullPolicy::Always => true
-        };
-
-        if !should_pull_image {
+        if !image.should_be_pulled(&bundle_directory.clone()) {
             log::info!("Using local image for {} due to IfNotPresent image policy", image.oci);
             let bundle = format!(
                 "{}/{}",

@@ -116,6 +116,8 @@ impl Riklet {
             log::info!("Started container {}", id);
         }
 
+        log::info!("Workload '{}' successfully processed.", &workload.name);
+
         Ok(())
     }
 
