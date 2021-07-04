@@ -1,5 +1,5 @@
 use std::fmt;
-use common::WorkerMetric;
+use common::{WorkerMetric, InstanceMetric};
 
 pub mod common {
     tonic::include_proto!("common");
