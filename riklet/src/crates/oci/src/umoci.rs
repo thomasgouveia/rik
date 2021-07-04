@@ -116,16 +116,19 @@ impl Executable for Umoci {
         let stderr = String::from_utf8(result.stderr.clone()).unwrap();
 
         if stderr != "" {
-            error!("Umoci error : {}", stderr);
-        }
-
-        ensure!(
-            result.status.success(),
-            UmociCommandFailedError {
-                stdout: stdout,
-                stderr: stderr
+            if stderr.contains("config.json already exists") {
+                log::warn!("A config.json already exists for this image.");
+            } else {
+                error!("Umoci error : {}", stderr);
+                ensure!(
+                    result.status.success(),
+                    UmociCommandFailedError {
+                        stdout: stdout,
+                        stderr: stderr
+                    }
+                );
             }
-        );
+        }
 
         Ok(stdout)
     }

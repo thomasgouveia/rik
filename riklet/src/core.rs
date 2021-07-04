@@ -112,6 +112,8 @@ impl Riklet {
                 no_new_keyring: false,
                 detach: true
             })).await?;
+
+            log::info!("Started container {}", id);
         }
 
         Ok(())

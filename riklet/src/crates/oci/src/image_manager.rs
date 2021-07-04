@@ -70,6 +70,8 @@ impl ImageManager {
             keep_dirlinks: false,
         })).await?;
 
+        log::debug!("{:?}", bundle);
+
         image.set_bundle(&bundle[..]);
 
         info!("Successfully pulled image {}", image_str);
