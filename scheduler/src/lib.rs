@@ -1,4 +1,5 @@
 use log::info;
+use node_metrics::Metrics;
 use proto::common::{InstanceMetric, WorkerMetric, WorkerStatus, Workload};
 use std::collections::HashMap;
 use std::error::Error;
@@ -6,7 +7,6 @@ use std::fmt;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::Sender;
 use tonic::Status;
-use node_metrics::Metrics;
 
 /// Define the structure of message send through the channel between
 /// the manager and a worker
@@ -173,7 +173,7 @@ impl Worker {
                 if self.channel.is_closed() {
                     self.set_state(WorkerState::NotReady);
                 }
-            },
+            }
             WorkerState::NotReady => {
                 if !self.channel.is_closed() {
                     self.set_state(WorkerState::Ready);

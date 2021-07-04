@@ -1,4 +1,3 @@
-
 use serde::{Deserialize, Serialize};
 
 use sysinfo::{DiskExt, ProcessorExt, System, SystemExt};

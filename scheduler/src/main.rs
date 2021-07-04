@@ -5,11 +5,13 @@ use crate::config_parser::ConfigParser;
 use crate::grpc::GRPCService;
 use env_logger::Env;
 use log::{debug, error, info, warn};
+use node_metrics::Metrics;
 use proto::controller::controller_server::ControllerServer;
 use proto::worker::worker_server::WorkerServer;
-use rand::seq::{SliceRandom, IteratorRandom};
-use rik_scheduler::{Controller, SchedulerError, StateType, Worker, WorkloadInstance, WorkerState};
+use rand::seq::{IteratorRandom, SliceRandom};
+use rik_scheduler::{Controller, SchedulerError, StateType, Worker, WorkerState, WorkloadInstance};
 use rik_scheduler::{Event, WorkloadChannelType};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::default::Default;
 use std::net::{SocketAddr, SocketAddrV4};
@@ -17,8 +19,6 @@ use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tonic::transport::Server;
 use tonic::Status;
-use serde::{Serialize, Deserialize};
-use node_metrics::Metrics;
 
 #[derive(Debug)]
 pub struct Manager {
@@ -91,7 +91,7 @@ impl Manager {
                         ),
                         _ => (),
                     }
-                },
+                }
                 Event::ScheduleRequest(workload) => {
                     debug!(
                         "New workload definition received to schedule {}",
@@ -99,10 +99,10 @@ impl Manager {
                     );
                     self.update_expected_state(WorkloadInstance::new(workload.clone(), None))
                         .await;
-                },
+                }
                 Event::Subscribe(channel, addr) => {
                     self.controller = Some(Controller::new(channel.clone(), addr.clone()));
-                },
+                }
                 Event::WorkerMetric(identifier, data) => {
                     if let Some(worker) = self.get_worker_by_hostname(identifier) {
                         debug!("Updated worker metrics for {}({})", identifier, worker.id);
@@ -111,9 +111,12 @@ impl Manager {
                             Err(e) => warn!("Could not deserialize metrics, error: {}", e),
                         };
                     } else {
-                        warn!("Received metrics for a unknown worker ({}), ignoring", identifier);
+                        warn!(
+                            "Received metrics for a unknown worker ({}), ignoring",
+                            identifier
+                        );
                     }
-                },
+                }
                 _ => unimplemented!("You think I'm not implemented ? Hold my beer"),
             }
         }
