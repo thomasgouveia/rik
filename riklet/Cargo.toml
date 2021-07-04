@@ -11,6 +11,16 @@ description = "The node agent responsible to execute workloads on a Rik cluster 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[package.metadata.deb]
+depends = "$auto, systemd"
+extended-description = "riklet daemon"
+section = "admin"
+priority = "optional"
+assets = [
+    ["target/release/riklet", "usr/bin/riklet", "755"],
+    ["service/riklet.service", "/lib/systemd/system/riklet.service", "644"],
+]
+
 [dependencies]
 proto = { git = "https://github.com/AlexandreBrg/rik", branch = "protolib", version="0.1.2" }
 cri = { path = "src/crates/cri" }
