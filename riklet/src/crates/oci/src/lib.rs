@@ -36,7 +36,6 @@ pub enum Error {
     InvalidPathError { source: std::io::Error },
 }
 
-
 trait Args {
     fn args(&self) -> Result<Vec<String>>;
 }

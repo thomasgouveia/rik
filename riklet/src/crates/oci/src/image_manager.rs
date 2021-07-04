@@ -1,5 +1,4 @@
-use crate::image::Image;
-use std::collections::HashMap;
+use crate::image::{Image, ImagePullPolicy};
 use crate::skopeo::{Skopeo, SkopeoConfiguration};
 use log::{info, debug};
 use crate::umoci::{Umoci, UmociConfiguration, UnpackArgs};
@@ -15,8 +14,7 @@ pub struct ImageManagerConfiguration {
 
 #[derive(Debug)]
 pub struct ImageManager {
-    /// Directory where the pulled images will be stored
-    pulled_images: HashMap<u64, Image>,
+    config: ImageManagerConfiguration,
     umoci: Umoci,
     skopeo: Skopeo
 }
@@ -28,13 +26,13 @@ impl ImageManager {
     /// Create a new Puller
     pub fn new(config: ImageManagerConfiguration) -> Result<Self> {
 
-        let umoci = Umoci::new(config.oci_manager)?;
-        let skopeo = Skopeo::new(config.image_puller)?;
+        let umoci = Umoci::new(config.oci_manager.clone())?;
+        let skopeo = Skopeo::new(config.image_puller.clone())?;
 
         debug!("ImageManager initialized.");
 
         Ok(ImageManager {
-            pulled_images: HashMap::<u64, Image>::new(),
+            config,
             umoci,
             skopeo,
         })
@@ -48,13 +46,29 @@ impl ImageManager {
 
     /// Pull image locally
     pub async fn pull(&mut self, image_str: &str) -> Result<Image> {
-
-        info!("Pulling image {}", image_str);
-
+        let bundle_directory = &self.config.oci_manager.bundles_directory.clone().unwrap();
         let mut image = Image::from(image_str);
 
-        let src = self.format_image_src(&image.oci);
+        // TODO : improve image management (refactor etc)
+        let should_pull_image: bool = match image.pull_policy {
+            ImagePullPolicy::IfNotPresent => !image.exists(&bundle_directory.clone()),
+            ImagePullPolicy::Always => true
+        };
 
+        if !should_pull_image {
+            log::info!("Using local image for {} due to IfNotPresent image policy", image.oci);
+            let bundle = format!(
+                "{}/{}",
+                bundle_directory.to_str().unwrap(),
+                image.get_uuid()
+            );
+            image.set_bundle(&bundle[..]);
+
+            return Ok(image)
+        }
+
+        info!("Pulling image {}", image_str);
+        let src = self.format_image_src(&image.oci);
         let image_path = self
             .skopeo
             .copy(&src, &format!("{}", &image.get_hashed_oci()), Default::default())
@@ -70,11 +84,10 @@ impl ImageManager {
             keep_dirlinks: false,
         })).await?;
 
-        log::debug!("{:?}", bundle);
-
         image.set_bundle(&bundle[..]);
 
         info!("Successfully pulled image {}", image_str);
+
 
         Ok(image)
     }

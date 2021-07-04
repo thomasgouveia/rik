@@ -3,11 +3,18 @@ use shared::utils::generate_hash;
 use std::path::{PathBuf};
 
 #[derive(Debug, Hash)]
+pub enum ImagePullPolicy {
+    IfNotPresent,
+    Always
+}
+
+#[derive(Debug, Hash)]
 pub struct Image {
     pub oci: String,
     pub name: String,
     pub tag: String,
     pub bundle: Option<PathBuf>,
+    pub pull_policy: ImagePullPolicy
 }
 
 impl Image {
@@ -22,8 +29,13 @@ impl Image {
             oci: String::from(img),
             name: String::from(image_name),
             tag: String::from(image_tag),
-            bundle: None
+            bundle: None,
+            pull_policy: ImagePullPolicy::IfNotPresent
         }
+    }
+
+    pub fn exists(&self, directory: &PathBuf) -> bool {
+        directory.join(&self.get_uuid()).exists()
     }
     
     pub fn get_uuid(&self) -> String {
