@@ -1,13 +1,14 @@
 use crate::grpc::GRPCService;
 use log::info;
-use proto::common::{WorkerRegistration, WorkerStatus};
+use proto::common::worker_status::Status;
+use proto::common::{WorkerMetric, WorkerRegistration, WorkerStatus};
 use proto::worker::worker_server::Worker as WorkerClient;
 use rik_scheduler::Send;
 use rik_scheduler::{Event, WorkloadChannelType};
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
-use tonic::{Request, Response, Status};
+use tonic::{Request, Response};
 
 #[tonic::async_trait]
 impl WorkerClient for GRPCService {
@@ -16,7 +17,7 @@ impl WorkerClient for GRPCService {
     async fn register(
         &self,
         _request: Request<WorkerRegistration>,
-    ) -> Result<Response<Self::RegisterStream>, Status> {
+    ) -> Result<Response<Self::RegisterStream>, tonic::Status> {
         // Streaming channel that sends workloads
         let (stream_tx, stream_rx) = channel::<WorkloadChannelType>(1024);
         let addr = _request
@@ -24,7 +25,7 @@ impl WorkerClient for GRPCService {
             .unwrap_or("0.0.0.0:000".parse().unwrap());
         let body: String = match &_request.get_ref().hostname {
             hostname if hostname.is_empty() => {
-                Err(Status::failed_precondition("No hostname specified"))
+                Err(tonic::Status::failed_precondition("No hostname specified"))
             }
             hostname => Ok(hostname.clone()),
         }?;
@@ -43,12 +44,16 @@ impl WorkerClient for GRPCService {
     async fn send_status_updates(
         &self,
         _request: Request<tonic::Streaming<WorkerStatus>>,
-    ) -> Result<Response<()>, Status> {
+    ) -> Result<Response<()>, tonic::Status> {
         let mut stream = _request.into_inner();
 
         while let Some(data) = stream.try_next().await? {
-            info!("Getting some info");
-            info!("{:#?}", data);
+            let identifier = data.identifier;
+            let data = data.status.unwrap();
+            match data {
+                Status::Worker(metrics) => self.send(Event::WorkerMetric(identifier, metrics)).await?,
+                _ => unimplemented!("This kind of metrics isn't implemented"),
+            };
         }
 
         Ok(Response::new(()))
@@ -99,12 +104,12 @@ mod tests {
         assert!(fallback.is_err());
         assert_eq!(
             fallback.err().unwrap().code(),
-            Status::failed_precondition("").code()
+            tonic::Status::failed_precondition("").code()
         );
     }
 
     #[tokio::test]
-    async fn test_register_event() -> Result<(), Status> {
+    async fn test_register_event() -> Result<(), tonic::Status> {
         let (sender, mut receiver) = channel::<Event>(1024);
 
         let service = GRPCService::new(sender);
@@ -145,7 +150,7 @@ mod tests {
         let message = receiver.recv().await.unwrap();
         match message {
             Event::Register(sender, _, _) => {
-                sender.send(Err(Status::cancelled("Sample"))).await?;
+                sender.send(Err(tonic::Status::cancelled("Sample"))).await?;
                 let rcv = stream.recv().await.unwrap();
                 assert!(rcv.is_err());
                 assert_eq!(rcv.unwrap_err().code(), Code::Cancelled)

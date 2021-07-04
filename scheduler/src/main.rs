@@ -4,11 +4,11 @@ mod grpc;
 use crate::config_parser::ConfigParser;
 use crate::grpc::GRPCService;
 use env_logger::Env;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use proto::controller::controller_server::ControllerServer;
 use proto::worker::worker_server::WorkerServer;
-use rand::seq::SliceRandom;
-use rik_scheduler::{Controller, SchedulerError, StateType, Worker, WorkloadInstance};
+use rand::seq::{SliceRandom, IteratorRandom};
+use rik_scheduler::{Controller, SchedulerError, StateType, Worker, WorkloadInstance, WorkerState};
 use rik_scheduler::{Event, WorkloadChannelType};
 use std::collections::HashMap;
 use std::default::Default;
@@ -17,6 +17,8 @@ use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tonic::transport::Server;
 use tonic::Status;
+use serde::{Serialize, Deserialize};
+use node_metrics::Metrics;
 
 #[derive(Debug)]
 pub struct Manager {
@@ -89,7 +91,7 @@ impl Manager {
                         ),
                         _ => (),
                     }
-                }
+                },
                 Event::ScheduleRequest(workload) => {
                     debug!(
                         "New workload definition received to schedule {}",
@@ -97,10 +99,22 @@ impl Manager {
                     );
                     self.update_expected_state(WorkloadInstance::new(workload.clone(), None))
                         .await;
-                }
+                },
                 Event::Subscribe(channel, addr) => {
                     self.controller = Some(Controller::new(channel.clone(), addr.clone()));
-                }
+                },
+                Event::WorkerMetric(identifier, data) => {
+                    if let Some(worker) = self.get_worker_by_hostname(identifier) {
+                        debug!("Updated worker metrics for {}({})", identifier, worker.id);
+                        match serde_json::from_str(&data.metrics) {
+                            Ok(metric) => worker.set_metrics(metric),
+                            Err(e) => warn!("Could not deserialize metrics, error: {}", e),
+                        };
+                    } else {
+                        warn!("Received metrics for a unknown worker ({}), ignoring", identifier);
+                    }
+                },
+                _ => unimplemented!("You think I'm not implemented ? Hold my beer"),
             }
         }
         Ok(())
@@ -148,7 +162,7 @@ impl Manager {
             let worker = Worker::new(self.get_next_id()?, channel, addr, hostname);
             info!(
                 "Worker {} is now registered, ip: {}",
-                worker.addr, worker.hostname
+                worker.hostname, worker.addr
             );
             self.workers.push(worker);
         }
@@ -209,7 +223,7 @@ impl Manager {
         for (instance_id, workload) in self.expected_state.clone().iter() {
             if !self.state.contains_key(instance_id) {
                 info!("Detected diff between expected state & new state, updating with instance_id {}", instance_id);
-                let worker = self.workers.choose(&mut rand::thread_rng());
+                let worker = self.get_eligible_worker();
                 match worker {
                     Some(worker) => {
                         let mut workload = workload.clone();
@@ -217,10 +231,15 @@ impl Manager {
                         self.schedule(workload.clone()).await;
                         self.state.insert(workload.get_instance_id(), workload);
                     }
-                    _ => (),
+                    _ => error!("How can I schedule IF THERE IS NO WORKER ?"),
                 };
             }
         }
+    }
+
+    fn get_eligible_worker(&self) -> Option<&Worker> {
+        let workers = self.workers.iter().filter(|worker| worker.is_ready());
+        workers.choose(&mut rand::thread_rng())
     }
 }
 
