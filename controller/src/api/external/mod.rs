@@ -2,7 +2,7 @@ mod routes;
 mod services;
 
 use crate::api::ApiChannel;
-use crate::database::RickDataBase;
+use crate::database::RikDataBase;
 use crate::logger::{LogType, LoggingChannel};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
@@ -36,7 +36,7 @@ impl Server {
         }
     }
 
-    pub fn run(&self, db: Arc<RickDataBase>) {
+    pub fn run(&self, db: Arc<RikDataBase>) {
         self.run_server(db);
         self.listen_notification();
     }
@@ -47,7 +47,7 @@ impl Server {
         }
     }
 
-    fn run_server(&self, db: Arc<RickDataBase>) {
+    fn run_server(&self, db: Arc<RikDataBase>) {
         let host = String::from("127.0.0.1");
         let port = 5000;
         let server = TinyServer::http(format!("{}:{}", host, port)).unwrap();

@@ -9,7 +9,7 @@ use crate::api::external::services::instance::send_create_instance;
 use crate::api::types::element::OnlyId;
 use crate::api::types::instance::InstanceDefinition;
 use crate::api::{ApiChannel, CRUD};
-use crate::database::RickRepository;
+use crate::database::RikRepository;
 use crate::logger::{LogType, LoggingChannel};
 
 pub fn get(
@@ -19,7 +19,7 @@ pub fn get(
     _: &Sender<ApiChannel>,
     logger: &Sender<LoggingChannel>,
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
-    if let Ok(instances) = RickRepository::find_all(connection, "/instance") {
+    if let Ok(instances) = RikRepository::find_all(connection, "/instance") {
         let instances_json = serde_json::to_string(&instances).unwrap();
         logger
             .send(LoggingChannel {
@@ -49,7 +49,7 @@ pub fn create(
     let mut instance: InstanceDefinition = serde_json::from_str(&content)?;
 
     //Workload not found
-    if let Err(_) = RickRepository::find_one(connection, instance.workload_id, "/workload") {
+    if let Err(_) = RikRepository::find_one(connection, instance.workload_id, "/workload") {
         logger
             .send(LoggingChannel {
                 message: String::from(format!("Workload id {} not found", instance.workload_id)),
@@ -65,7 +65,7 @@ pub fn create(
 
     if !instance.name.is_none() {
         // Check name is not used
-        if let Ok(_) = RickRepository::check_duplicate_name(
+        if let Ok(_) = RikRepository::check_duplicate_name(
             connection,
             &format!("/instance/%/default/{}", instance.get_name()),
         ) {
@@ -111,7 +111,7 @@ pub fn delete(
     req.as_reader().read_to_string(&mut content).unwrap();
     let OnlyId { id: delete_id } = serde_json::from_str(&content).unwrap();
 
-    if let Ok(instance) = RickRepository::find_one(connection, delete_id, "/instance") {
+    if let Ok(instance) = RikRepository::find_one(connection, delete_id, "/instance") {
         internal_sender
             .send(ApiChannel {
                 action: CRUD::Delete,
@@ -120,7 +120,7 @@ pub fn delete(
                 instance_id: Some(delete_id),
             })
             .unwrap();
-        RickRepository::delete(connection, instance.id).unwrap();
+        RikRepository::delete(connection, instance.id).unwrap();
 
         logger
             .send(LoggingChannel {

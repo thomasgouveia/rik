@@ -1,6 +1,6 @@
 use crate::api::types::workload::WorkloadDefinition;
 use crate::api::{ApiChannel, CRUD};
-use crate::database::RickRepository;
+use crate::database::RikRepository;
 use names::Generator;
 use rusqlite::Connection;
 use std::sync::mpsc::Sender;
@@ -18,13 +18,13 @@ pub fn send_create_instance(
         None => &random_name,
     };
 
-    let workload_db = match RickRepository::find_one(connection, workload_id, "/workload") {
+    let workload_db = match RikRepository::find_one(connection, workload_id, "/workload") {
         Ok(workload) => workload,
         Err(err) => panic!("{}", err),
     };
     let workload: WorkloadDefinition = serde_json::from_str(&workload_db.value).unwrap();
 
-    RickRepository::insert(
+    RikRepository::insert(
         connection,
         &format!("/instance/{}/default/{}", workload.kind, instance_name),
         "",

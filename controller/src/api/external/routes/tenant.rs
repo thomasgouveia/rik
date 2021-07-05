@@ -8,7 +8,7 @@ use crate::api;
 use crate::api::types::element::OnlyId;
 use crate::api::types::tenant::Tenant;
 use crate::api::ApiChannel;
-use crate::database::RickRepository;
+use crate::database::RikRepository;
 use crate::logger::{LogType, LoggingChannel};
 
 pub fn get(
@@ -18,7 +18,7 @@ pub fn get(
     _: &Sender<ApiChannel>,
     logger: &Sender<LoggingChannel>,
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
-    if let Ok(tenants) = RickRepository::find_all(connection, "/tenant") {
+    if let Ok(tenants) = RikRepository::find_all(connection, "/tenant") {
         let tenants_json = serde_json::to_string(&tenants).unwrap();
         logger
             .send(LoggingChannel {
@@ -46,7 +46,7 @@ pub fn create(
     req.as_reader().read_to_string(&mut content).unwrap();
     let tenant: Tenant = serde_json::from_str(&content).unwrap();
 
-    if let Ok(()) = RickRepository::insert(connection, &tenant.name, &tenant.value) {
+    if let Ok(()) = RikRepository::insert(connection, &tenant.name, &tenant.value) {
         logger
             .send(LoggingChannel {
                 message: String::from("Create tenant"),
@@ -79,8 +79,8 @@ pub fn delete(
     req.as_reader().read_to_string(&mut content).unwrap();
     let OnlyId { id: delete_id } = serde_json::from_str(&content).unwrap();
 
-    if let Ok(tenant) = RickRepository::find_one(connection, delete_id, "/tenant") {
-        RickRepository::delete(connection, tenant.id).unwrap();
+    if let Ok(tenant) = RikRepository::find_one(connection, delete_id, "/tenant") {
+        RikRepository::delete(connection, tenant.id).unwrap();
 
         logger
             .send(LoggingChannel {

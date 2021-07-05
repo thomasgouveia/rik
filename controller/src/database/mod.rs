@@ -1,14 +1,14 @@
 use crate::api::types::element::Element;
 use rusqlite::{params, Connection, Result};
 use std::sync::Arc;
-pub struct RickDataBase {
+pub struct RikDataBase {
     name: String,
 }
 
 #[allow(dead_code)]
-impl RickDataBase {
-    pub fn new(name: String) -> Arc<RickDataBase> {
-        Arc::new(RickDataBase { name })
+impl RikDataBase {
+    pub fn new(name: String) -> Arc<RikDataBase> {
+        Arc::new(RikDataBase { name })
     }
 
     pub fn init_tables(&self) -> Result<()> {
@@ -36,8 +36,8 @@ impl RickDataBase {
     }
 }
 
-pub struct RickRepository {}
-impl RickRepository {
+pub struct RikRepository {}
+impl RikRepository {
     pub fn insert(connection: &Connection, name: &str, value: &str) -> Result<()> {
         connection
             .execute(

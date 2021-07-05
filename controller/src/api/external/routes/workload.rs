@@ -8,7 +8,7 @@ use crate::api;
 use crate::api::types::element::OnlyId;
 use crate::api::types::workload::WorkloadDefinition;
 use crate::api::ApiChannel;
-use crate::database::RickRepository;
+use crate::database::RikRepository;
 use crate::logger::{LogType, LoggingChannel};
 
 pub fn get(
@@ -18,7 +18,7 @@ pub fn get(
     _: &Sender<ApiChannel>,
     logger: &Sender<LoggingChannel>,
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
-    if let Ok(workloads) = RickRepository::find_all(connection, "/workload") {
+    if let Ok(workloads) = RikRepository::find_all(connection, "/workload") {
         let workloads_json = serde_json::to_string(&workloads).unwrap();
         logger
             .send(LoggingChannel {
@@ -53,7 +53,7 @@ pub fn create(
     );
 
     // Check name is not used
-    if let Ok(_) = RickRepository::check_duplicate_name(connection, &name) {
+    if let Ok(_) = RikRepository::check_duplicate_name(connection, &name) {
         logger
             .send(LoggingChannel {
                 message: String::from("Name already used"),
@@ -64,7 +64,7 @@ pub fn create(
             .with_status_code(tiny_http::StatusCode::from(404)));
     }
 
-    if let Ok(()) = RickRepository::insert(
+    if let Ok(()) = RikRepository::insert(
         connection,
         &name,
         &serde_json::to_string(&workload).unwrap(),
@@ -109,8 +109,8 @@ pub fn delete(
     req.as_reader().read_to_string(&mut content).unwrap();
     let OnlyId { id: delete_id } = serde_json::from_str(&content).unwrap();
 
-    if let Ok(workload) = RickRepository::find_one(connection, delete_id, "/workload") {
-        RickRepository::delete(connection, workload.id).unwrap();
+    if let Ok(workload) = RikRepository::find_one(connection, delete_id, "/workload") {
+        RikRepository::delete(connection, workload.id).unwrap();
 
         logger
             .send(LoggingChannel {

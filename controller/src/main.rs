@@ -5,14 +5,14 @@ mod logger;
 use std::sync::mpsc::channel;
 use std::thread;
 
-use crate::database::RickDataBase;
+use crate::database::RikDataBase;
 use api::{external, internal, ApiChannel};
 use logger::{Logger, LoggingChannel};
 
 use tokio::runtime::Builder;
 
 fn main() {
-    let db = RickDataBase::new(String::from("rick"));
+    let db = RikDataBase::new(String::from("rik"));
     db.init_tables().unwrap();
 
     let (logging_sender, logging_receiver) = channel::<LoggingChannel>();
