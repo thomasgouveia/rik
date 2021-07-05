@@ -8,6 +8,7 @@ use rusqlite::Connection;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use tonic;
+use dotenv::dotenv;
 
 #[derive(Clone)]
 struct RikControllerClient {
@@ -17,7 +18,13 @@ struct RikControllerClient {
 #[allow(dead_code)]
 impl RikControllerClient {
     pub async fn connect() -> Result<RikControllerClient, tonic::transport::Error> {
-        let client = ControllerClient::connect("http://127.0.0.1:4996").await?;
+        dotenv().ok();
+        let key = "SCHEDULER_URL";
+        let val_scheduler_url = match std::env::var(key) {
+            Ok(val) => val,
+            Err(e) => panic!("couldn't interpret {}: {}", key, e),
+        };
+        let client = ControllerClient::connect(val_scheduler_url).await?;
         Ok(RikControllerClient { client })
     }
 
@@ -95,7 +102,7 @@ impl Server {
                         if let Some(workload_definition) = notification.workload_definition {
                             client
                                 .schedule_instance(Workload {
-                                    instance_id: instance_id.to_string(),
+                                    instance_id: instance_id as u32,
                                     definition: serde_json::to_string(&workload_definition)
                                         .unwrap(),
                                 })

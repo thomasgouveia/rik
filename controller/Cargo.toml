@@ -5,6 +5,15 @@ authors = ["Malo <malo.polese@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.deb]
+depends = "$auto, systemd"
+extended-description = "rik-controller daemon"
+section = "admin"
+priority = "optional"
+assets = [
+    ["target/release/controller", "usr/bin/rik-controller", "755"],
+    ["service/rik-controller.service", "/lib/systemd/system/rik-controller.service", "644"],
+]
 
 [dependencies]
 tiny_http = "0.8.2"
@@ -19,6 +28,8 @@ tonic = "0.4.3"
 prost = "0.7.0"
 tokio = { version = "1.6.1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 tokio-stream = "0.1.6"
+dotenv_codegen = "0.15.0"
+dotenv = "0.15.0"
 
 [build-dependencies]
 tonic-build = "0.4.2"
@@ -26,3 +37,4 @@ tonic-build = "0.4.2"
 [dependencies.rusqlite]
 version = "0.25.1"
 features = ["bundled"]
+
