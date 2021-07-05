@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::fmt;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -10,13 +11,17 @@ pub struct OnlyId {
 pub struct Element {
     pub id: usize,
     pub name: String,
-    pub value: String,
+    pub value: serde_json::Value,
 }
 
 #[allow(dead_code)]
 impl Element {
     pub fn new(id: usize, name: String, value: String) -> Element {
-        Element { id, name, value }
+        Element {
+            id,
+            name,
+            value: serde_json::from_str(&value).unwrap(),
+        }
     }
 
     pub fn set_name(&mut self, name: String) {
@@ -24,7 +29,7 @@ impl Element {
     }
 
     pub fn set_value(&mut self, value: String) {
-        self.value = value;
+        self.value = serde_json::from_str(&value).unwrap();
     }
 }
 impl fmt::Display for Element {

@@ -22,7 +22,8 @@ pub fn send_create_instance(
         Ok(workload) => workload,
         Err(err) => panic!("{}", err),
     };
-    let workload: WorkloadDefinition = serde_json::from_str(&workload_db.value).unwrap();
+    let workload: WorkloadDefinition =
+        serde_json::from_str(&workload_db.value.to_string()).unwrap();
 
     RikRepository::insert(
         connection,
