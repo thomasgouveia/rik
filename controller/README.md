@@ -64,6 +64,20 @@ If they diverge, controllers send commands to the scheduler to reconcile the act
 Maybe later we might want to add compatibility with other database like postgres, or SQLite.
 So we want to be database agnostic and as @sameo pointed out we need to think about using an light abstraction between our controller and the database for long term use.
 
+
+
+# Usage 
+
+Rik-scheduler must be running before the controller if you want the controller to work properly.
+To run the controller as a daemon on debian like:
+```bash
+cargo build --release
+cargo deb
+sudo dpkg -i target/debian/controller_0.1.0_amd64.deb
+sudo systemctl daemon-reload
+sudo systemctl start rik-controller
+```
+
 ## Others
 
 K8S architecture example we might want to follow
