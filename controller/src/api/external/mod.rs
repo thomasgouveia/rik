@@ -8,6 +8,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 use tiny_http::{Request, Server as TinyServer};
+use dotenv::dotenv;
 
 use colored::Colorize;
 
@@ -49,7 +50,11 @@ impl Server {
 
     fn run_server(&self, db: Arc<RikDataBase>) {
         let host = String::from("127.0.0.1");
-        let port = 5000;
+        dotenv().ok();
+        let port: usize = match std::env::var("PORT") {
+            Ok(val) => val.parse().unwrap(),
+            Err(_e) => 5000,
+        };
         let server = TinyServer::http(format!("{}:{}", host, port)).unwrap();
         let server = Arc::new(server);
 

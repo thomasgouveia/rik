@@ -27,7 +27,7 @@ pub fn send_create_instance(
     RikRepository::insert(
         connection,
         &format!("/instance/{}/default/{}", workload.kind, instance_name),
-        "",
+        &format!("{{\"workload_id\": \"{}\"}}", workload_id),
     )
     .unwrap();
     let instance_id = connection.last_insert_rowid();

@@ -28,8 +28,8 @@ tonic = "0.4.3"
 prost = "0.7.0"
 tokio = { version = "1.6.1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 tokio-stream = "0.1.6"
-dotenv_codegen = "0.15.0"
 dotenv = "0.15.0"
+nix = "0.21.0"
 
 [build-dependencies]
 tonic-build = "0.4.2"

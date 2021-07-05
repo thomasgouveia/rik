@@ -19,12 +19,11 @@ struct RikControllerClient {
 impl RikControllerClient {
     pub async fn connect() -> Result<RikControllerClient, tonic::transport::Error> {
         dotenv().ok();
-        let key = "SCHEDULER_URL";
-        let val_scheduler_url = match std::env::var(key) {
+        let scheduler_url = match std::env::var("SCHEDULER_URL") {
             Ok(val) => val,
-            Err(e) => panic!("couldn't interpret {}: {}", key, e),
+            Err(_e) => "http://127.0.0.1:4996".to_string(),
         };
-        let client = ControllerClient::connect(val_scheduler_url).await?;
+        let client = ControllerClient::connect(scheduler_url).await?;
         Ok(RikControllerClient { client })
     }
 

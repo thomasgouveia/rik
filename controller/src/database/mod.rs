@@ -1,6 +1,9 @@
 use crate::api::types::element::Element;
+use dotenv::dotenv;
 use rusqlite::{params, Connection, Result};
 use std::sync::Arc;
+
+#[allow(dead_code)]
 pub struct RikDataBase {
     name: String,
 }
@@ -29,10 +32,15 @@ impl RikDataBase {
     pub fn drop_tables(&self) {}
 
     pub fn open(&self) -> Result<Connection> {
-        Ok(Connection::open(format!(
-            "./src/database/data/{}.db",
-            self.name
-        ))?)
+        dotenv().ok();
+        let file_path = match std::env::var("DATABASE_LOCATION") {
+            Ok(val) => val,
+            Err(_e) => "/var/lib/rik/data/".to_string(),
+        };
+        std::fs::create_dir_all(&file_path).unwrap();
+
+        let database_path = format!("{}{}.db", file_path, self.name);
+        Ok(Connection::open(&database_path)?)
     }
 }
 
