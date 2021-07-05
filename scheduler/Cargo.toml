@@ -4,6 +4,16 @@ version = "0.1.0"
 authors = ["Protocole <burgoni.alexandre@protonmail.com>"]
 edition = "2018"
 
+[package.metadata.deb]
+depends = "$auto, systemd"
+extended-description = "rik scheduler daemon"
+section = "admin"
+priority = "optional"
+assets = [
+    ["target/release/rik-scheduler", "usr/bin/rik-scheduler", "755"],
+    ["service/rik-scheduler.service", "/lib/systemd/system/rik-scheduler.service", "644"],
+]
+
 [dependencies]
 tonic = "0.4.3"
 tokio = { version = "1.6.1", features = ["rt-multi-thread", "macros", "sync", "time"] }
