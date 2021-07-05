@@ -5,6 +5,7 @@ use std::str::FromStr;
 use std::sync::mpsc::Sender;
 
 use crate::api;
+use crate::api::external::services::element::elements_set_right_name;
 use crate::api::types::element::OnlyId;
 use crate::api::types::tenant::Tenant;
 use crate::api::ApiChannel;
@@ -18,7 +19,8 @@ pub fn get(
     _: &Sender<ApiChannel>,
     logger: &Sender<LoggingChannel>,
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
-    if let Ok(tenants) = RikRepository::find_all(connection, "/tenant") {
+    if let Ok(mut tenants) = RikRepository::find_all(connection, "/tenant") {
+        tenants = elements_set_right_name(tenants.clone());
         let tenants_json = serde_json::to_string(&tenants).unwrap();
         logger
             .send(LoggingChannel {

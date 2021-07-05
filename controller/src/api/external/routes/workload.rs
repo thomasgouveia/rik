@@ -6,6 +6,7 @@ use std::sync::mpsc::Sender;
 
 use crate::api;
 use crate::api::types::element::OnlyId;
+use crate::api::external::services::element::elements_set_right_name;
 use crate::api::types::workload::WorkloadDefinition;
 use crate::api::ApiChannel;
 use crate::database::RikRepository;
@@ -18,7 +19,8 @@ pub fn get(
     _: &Sender<ApiChannel>,
     logger: &Sender<LoggingChannel>,
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
-    if let Ok(workloads) = RikRepository::find_all(connection, "/workload") {
+    if let Ok(mut workloads) = RikRepository::find_all(connection, "/workload") {
+        workloads = elements_set_right_name(workloads.clone());
         let workloads_json = serde_json::to_string(&workloads).unwrap();
         logger
             .send(LoggingChannel {

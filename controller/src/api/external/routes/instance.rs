@@ -5,6 +5,7 @@ use std::str::FromStr;
 use std::sync::mpsc::Sender;
 
 use crate::api;
+use crate::api::external::services::element::elements_set_right_name;
 use crate::api::external::services::instance::send_create_instance;
 use crate::api::types::element::OnlyId;
 use crate::api::types::instance::InstanceDefinition;
@@ -19,7 +20,8 @@ pub fn get(
     _: &Sender<ApiChannel>,
     logger: &Sender<LoggingChannel>,
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
-    if let Ok(instances) = RikRepository::find_all(connection, "/instance") {
+    if let Ok(mut instances) = RikRepository::find_all(connection, "/instance") {
+        instances = elements_set_right_name(instances.clone());
         let instances_json = serde_json::to_string(&instances).unwrap();
         logger
             .send(LoggingChannel {
