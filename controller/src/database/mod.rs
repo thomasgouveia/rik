@@ -1,4 +1,5 @@
 use crate::api::types::element::Element;
+
 use dotenv::dotenv;
 use rusqlite::{params, Connection, Result};
 use std::sync::Arc;
@@ -46,14 +47,14 @@ impl RikDataBase {
 
 pub struct RikRepository {}
 impl RikRepository {
-    pub fn insert(connection: &Connection, name: &str, value: &str) -> Result<()> {
+    pub fn insert(connection: &Connection, name: &str, value: &str) -> Result<usize> {
         connection
             .execute(
                 "INSERT INTO cluster (name, value) VALUES (?1, ?2)",
                 params![name, value],
             )
             .unwrap();
-        Ok(())
+        Ok(connection.last_insert_rowid() as usize)
     }
 
     pub fn delete(connection: &Connection, id: usize) -> Result<()> {
@@ -114,5 +115,30 @@ impl RikRepository {
             params!["Status Updated", id],
         )?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::database::{RikDataBase, RikRepository};
+    use crate::tests::fixtures::db_connection;
+    use rstest::rstest;
+    #[rstest]
+    fn test_insert_and_find_ok(db_connection: std::sync::Arc<RikDataBase>) {
+        let connection = db_connection.open().unwrap();
+        let name = "/workload/pods/default/test-workload";
+        let value = "{\"data\": \"test\"}";
+        let inserted_id = match RikRepository::insert(&connection, name, value) {
+            Ok(v) => v,
+            Err(_) => panic!("Test failed on database insert"),
+        };
+
+        let element = match RikRepository::find_one(&connection, inserted_id, "/workload") {
+            Ok(v) => v,
+            Err(_) => panic!("Test failed can't find inserted value"),
+        };
+        assert_eq!(element.id, inserted_id);
+        assert_eq!(element.name, name);
+        assert_eq!(element.value, serde_json::json!({"data": "test"}));
     }
 }

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use names::Generator;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InstanceDefinition {
@@ -20,10 +20,10 @@ impl InstanceDefinition {
 
     pub fn get_name(&mut self) -> &mut String {
         let mut random_name_generator = Generator::default();
-        self.name.get_or_insert(random_name_generator.next().unwrap())
+        self.name
+            .get_or_insert(random_name_generator.next().unwrap())
     }
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Instance {

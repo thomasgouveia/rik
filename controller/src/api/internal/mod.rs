@@ -2,13 +2,13 @@ use crate::api::{ApiChannel, CRUD};
 use crate::database::RikDataBase;
 use crate::database::RikRepository;
 use crate::logger::{LogType, LoggingChannel};
+use dotenv::dotenv;
 use proto::common::Workload;
 use proto::controller::controller_client::ControllerClient;
 use rusqlite::Connection;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use tonic;
-use dotenv::dotenv;
 
 #[derive(Clone)]
 struct RikControllerClient {

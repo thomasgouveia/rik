@@ -1,16 +1,15 @@
+use crate::api;
+use crate::api::external::services::element::elements_set_right_name;
+use crate::api::types::element::OnlyId;
+use crate::api::types::workload::WorkloadDefinition;
+use crate::api::ApiChannel;
+use crate::database::RikRepository;
+use crate::logger::{LogType, LoggingChannel};
 use route_recognizer;
 use rusqlite::Connection;
 use std::io;
 use std::str::FromStr;
 use std::sync::mpsc::Sender;
-
-use crate::api;
-use crate::api::types::element::OnlyId;
-use crate::api::external::services::element::elements_set_right_name;
-use crate::api::types::workload::WorkloadDefinition;
-use crate::api::ApiChannel;
-use crate::database::RikRepository;
-use crate::logger::{LogType, LoggingChannel};
 
 pub fn get(
     _: &mut tiny_http::Request,
@@ -28,6 +27,7 @@ pub fn get(
                 log_type: LogType::Log,
             })
             .unwrap();
+
         Ok(tiny_http::Response::from_string(workloads_json)
             .with_header(tiny_http::Header::from_str("Content-Type: application/json").unwrap())
             .with_status_code(tiny_http::StatusCode::from(200)))
@@ -66,20 +66,15 @@ pub fn create(
             .with_status_code(tiny_http::StatusCode::from(404)));
     }
 
-    if let Ok(()) = RikRepository::insert(
+    if let Ok(inserted_id) = RikRepository::insert(
         connection,
         &name,
         &serde_json::to_string(&workload).unwrap(),
     ) {
-        let workload_id: OnlyId = OnlyId {
-            id: connection.last_insert_rowid() as usize,
-        };
+        let workload_id: OnlyId = OnlyId { id: inserted_id };
         logger
             .send(LoggingChannel {
-                message: String::from(format!(
-                    "Workload {} successfully created",
-                    workload_id.id
-                )),
+                message: String::from(format!("Workload {} successfully created", inserted_id)),
                 log_type: LogType::Log,
             })
             .unwrap();

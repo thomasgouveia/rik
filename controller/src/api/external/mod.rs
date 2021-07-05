@@ -4,11 +4,11 @@ mod services;
 use crate::api::ApiChannel;
 use crate::database::RikDataBase;
 use crate::logger::{LogType, LoggingChannel};
+use dotenv::dotenv;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 use tiny_http::{Request, Server as TinyServer};
-use dotenv::dotenv;
 
 use colored::Colorize;
 

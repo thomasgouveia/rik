@@ -1,6 +1,7 @@
 mod api;
 mod database;
 mod logger;
+mod tests;
 
 use std::sync::mpsc::channel;
 use std::thread;
@@ -9,8 +10,8 @@ use crate::database::RikDataBase;
 use api::{external, internal, ApiChannel};
 use logger::{Logger, LoggingChannel};
 
-use tokio::runtime::Builder;
 use nix;
+use tokio::runtime::Builder;
 
 fn main() {
     if !nix::unistd::Uid::effective().is_root() {

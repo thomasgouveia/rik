@@ -48,7 +48,7 @@ pub fn create(
     req.as_reader().read_to_string(&mut content).unwrap();
     let tenant: Tenant = serde_json::from_str(&content).unwrap();
 
-    if let Ok(()) = RikRepository::insert(connection, &tenant.name, &tenant.value) {
+    if let Ok(_) = RikRepository::insert(connection, &tenant.name, &tenant.value) {
         logger
             .send(LoggingChannel {
                 message: String::from("Create tenant"),
