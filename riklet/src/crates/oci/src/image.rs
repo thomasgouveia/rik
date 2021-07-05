@@ -34,8 +34,11 @@ impl Image {
         }
     }
 
-    pub fn exists(&self, directory: &PathBuf) -> bool {
-        directory.join(&self.get_uuid()).exists()
+    pub fn should_be_pulled(&self, directory: &PathBuf) -> bool {
+        match &self.pull_policy {
+            ImagePullPolicy::IfNotPresent => !directory.join(&self.get_uuid()).exists(),
+            ImagePullPolicy::Always => true
+        }
     }
     
     pub fn get_uuid(&self) -> String {
