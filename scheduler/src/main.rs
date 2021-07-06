@@ -7,7 +7,7 @@ use env_logger::Env;
 use log::{debug, error, info, warn};
 use proto::controller::controller_server::ControllerServer;
 use proto::worker::worker_server::WorkerServer;
-use rand::seq::{IteratorRandom};
+use rand::seq::IteratorRandom;
 use rik_scheduler::{Controller, SchedulerError, StateType, Worker, WorkloadInstance};
 use rik_scheduler::{Event, WorkloadChannelType};
 use std::collections::HashMap;
@@ -79,15 +79,13 @@ impl Manager {
         while let Some(e) = &self.channel.recv().await {
             match e {
                 Event::Register(channel, addr, hostname) => {
-                    match self
-                        .register(channel.clone(), addr.clone(), hostname.clone())
-                        .await
-                    {
-                        Err(e) => error!(
+                    if let Err(e) = self
+                        .register(channel.clone(), *addr, hostname.clone())
+                        .await {
+                        error!(
                             "Failed to register worker {} ({}), reason: {}",
                             hostname, addr, e
-                        ),
-                        _ => (),
+                        )
                     }
                 }
                 Event::ScheduleRequest(workload) => {
@@ -99,7 +97,7 @@ impl Manager {
                         .await;
                 }
                 Event::Subscribe(channel, addr) => {
-                    self.controller = Some(Controller::new(channel.clone(), addr.clone()));
+                    self.controller = Some(Controller::new(channel.clone(), *addr));
                 }
                 Event::WorkerMetric(identifier, data) => {
                     if let Some(worker) = self.get_worker_by_hostname(identifier) {
@@ -131,7 +129,7 @@ impl Manager {
         }
     }
 
-    fn get_worker_by_hostname(&mut self, hostname: &String) -> Option<&mut Worker> {
+    fn get_worker_by_hostname(&mut self, hostname: &str) -> Option<&mut Worker> {
         self.workers
             .iter_mut()
             .find(|worker| worker.hostname.eq(hostname))

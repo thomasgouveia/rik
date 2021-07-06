@@ -1,4 +1,5 @@
 use crate::grpc::GRPCService;
+use log::info;
 use proto::common::{WorkerStatus, Workload};
 use proto::controller::controller_server::Controller as ControllerClient;
 use rik_scheduler::Event;
@@ -16,6 +17,12 @@ impl ControllerClient for GRPCService {
         Ok(Response::new(()))
     }
 
+    async fn unschedule_instance(&self, _request: Request<Workload>) -> Result<Response<()>, Status> {
+        info!("Received unscheduling order");
+
+        Ok(Response::new(()))
+    }
+
     type GetStatusUpdatesStream = ReceiverStream<Result<WorkerStatus, Status>>;
 
     async fn get_status_updates(
@@ -25,7 +32,7 @@ impl ControllerClient for GRPCService {
         let (stream_tx, stream_rx) = channel::<Result<WorkerStatus, Status>>(1024);
         let addr = _request
             .remote_addr()
-            .unwrap_or("0.0.0.0:000".parse().unwrap());
+            .unwrap_or_else(|| "0.0.0.0:000".parse().unwrap());
         self.send(Event::Subscribe(stream_tx, addr)).await?;
 
         Ok(Response::new(ReceiverStream::new(stream_rx)))
@@ -45,7 +52,7 @@ mod tests {
 
         let service = GRPCService::new(sender);
         let workload = Workload {
-            instance_id: 37,
+            instance_id: "uuid".to_string(),
             definition: "{}".to_string(),
         };
 

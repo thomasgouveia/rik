@@ -21,7 +21,7 @@ impl WorkerClient for GRPCService {
         let (stream_tx, stream_rx) = channel::<WorkloadChannelType>(1024);
         let addr = _request
             .remote_addr()
-            .unwrap_or("0.0.0.0:000".parse().unwrap());
+            .unwrap_or_else(|| "0.0.0.0:000".parse().unwrap());
         let body: String = match &_request.get_ref().hostname {
             hostname if hostname.is_empty() => {
                 Err(tonic::Status::failed_precondition("No hostname specified"))

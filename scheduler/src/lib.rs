@@ -214,10 +214,7 @@ impl WorkloadInstance {
     }
 
     pub fn has_worker(&self) -> bool {
-        match self.worker_id {
-            Some(_) => true,
-            _ => false,
-        }
+        self.worker_id.is_some()
     }
 
     pub fn get_worker_id(&self) -> Option<u8> {
