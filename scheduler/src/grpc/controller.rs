@@ -17,7 +17,10 @@ impl ControllerClient for GRPCService {
         Ok(Response::new(()))
     }
 
-    async fn unschedule_instance(&self, _request: Request<Workload>) -> Result<Response<()>, Status> {
+    async fn unschedule_instance(
+        &self,
+        _request: Request<Workload>,
+    ) -> Result<Response<()>, Status> {
         info!("Received unscheduling order");
 
         Ok(Response::new(()))

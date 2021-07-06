@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use sysinfo::{DiskExt, ProcessorExt, System, SystemExt};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct CpuMetrics {
     /// number of CPU
     pub total: u8,
@@ -10,7 +10,7 @@ pub struct CpuMetrics {
     pub free: f32,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct MemoryMetrics {
     /// Total memory (bytes)
     pub total: u64,
@@ -18,7 +18,7 @@ pub struct MemoryMetrics {
     pub free: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct DiskMetrics {
     pub disk_name: String,
     /// Total disk (bytes)
@@ -27,7 +27,7 @@ pub struct DiskMetrics {
     pub free: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Metrics {
     pub cpu: CpuMetrics,
     pub memory: MemoryMetrics,
@@ -59,7 +59,7 @@ impl Metrics {
                 None => String::from("unknown"),
             };
             disks.push(DiskMetrics {
-                disk_name: disk_name,
+                disk_name,
                 total: disk.total_space(),
                 free: disk.available_space(),
             })
@@ -74,7 +74,7 @@ impl Metrics {
                 total: 1024 * memory_total,
                 free: 1024 * (memory_total - sys.used_memory()),
             },
-            disks: disks,
+            disks,
         }
     }
 

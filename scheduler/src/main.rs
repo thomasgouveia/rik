@@ -81,7 +81,8 @@ impl Manager {
                 Event::Register(channel, addr, hostname) => {
                     if let Err(e) = self
                         .register(channel.clone(), *addr, hostname.clone())
-                        .await {
+                        .await
+                    {
                         error!(
                             "Failed to register worker {} ({}), reason: {}",
                             hostname, addr, e
@@ -227,8 +228,11 @@ impl Manager {
                     Some(worker) => {
                         let mut workload = workload.clone();
                         workload.set_worker(worker.id);
-                        self.schedule(workload.clone()).await;
-                        self.state.insert(workload.get_instance_id(), workload);
+                        if let Err(e) = self.schedule(workload.clone()).await {
+                            error!("Could not schedule workload {}, error: {}", workload.get_instance_id(), e)
+                        } else {
+                            self.state.insert(workload.get_instance_id(), workload);
+                        }
                     }
                     _ => error!("How can I schedule IF THERE IS NO WORKER ?"),
                 };

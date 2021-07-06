@@ -70,7 +70,7 @@ impl ConfigParser {
         String::from(match occurrences {
             0 => "info",
             1 => "debug",
-            2 | _ => "trace",
+            _ => "trace",
         })
     }
 }
