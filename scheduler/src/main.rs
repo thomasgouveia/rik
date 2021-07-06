@@ -229,7 +229,11 @@ impl Manager {
                         let mut workload = workload.clone();
                         workload.set_worker(worker.id);
                         if let Err(e) = self.schedule(workload.clone()).await {
-                            error!("Could not schedule workload {}, error: {}", workload.get_instance_id(), e)
+                            error!(
+                                "Could not schedule workload {}, error: {}",
+                                workload.get_instance_id(),
+                                e
+                            )
                         } else {
                             self.state.insert(workload.get_instance_id(), workload);
                         }
