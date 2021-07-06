@@ -1,8 +1,7 @@
 use clap::Clap;
-use clap::{App, Arg};
 use futures::stream::TryStreamExt;
 use ipnetwork::IpNetwork;
-use rtnetlink::{new_connection, Error, LinkSetRequest, NetworkNamespace};
+use rtnetlink::{new_connection, Error};
 use std::process::Command;
 
 #[tokio::main]
@@ -42,24 +41,16 @@ async fn add_address(link_name: String, ip: IpNetwork) -> Result<(), Error> {
 #[clap(name = "Network NameSpace Configurator v0.3")]
 struct Args {
     /// Path of the netns to use
-    #[clap(short, long)]
-    netns_path: String,
-
-    /// Name of the link created and set on the host
-    #[clap(short, long, default_value = "host-link")]
-    host_link_name: String,
-
-    /// Name of the link created and set on the container
-    #[clap(short, long, default_value = "container-link")]
-    container_link_name: String,
+    //#[clap(short, long)]
+    //path_netns: String,
 
     /// Globally unique identifier of the container
     #[clap(short, long)]
-    guid: String,
+    namespace: String,
 }
 
 fn move_veth_to_netns(veth: String, netns: String) -> Result<(), Error> {
-    println!("ip link set {} netns {}", veth, netns);
+    //println!("ip link set {} netns {}", veth, netns);
     Command::new("sh")
         .arg("-c")
         .arg("ip link set ".to_string() + veth.as_str() + " netns " + netns.as_str())
@@ -71,34 +62,47 @@ fn move_veth_to_netns(veth: String, netns: String) -> Result<(), Error> {
 fn main() -> Result<(), String> {
     let args = Args::parse();
 
-    println!("The netns path is {}!", args.netns_path);
-    let namespace_name: String = args.netns_path.split("/").collect();
+    //println!("The netns path is {}!", args.netns_path);
 
-    //mock variables
-
-    let link_name1 = args.container_link_name;
-    let link_name2 = args.host_link_name;
-    let ip = "10.1.1.1".parse().unwrap_or_else(|_| {
+    if args.namespace.len() > 12 {
+        eprintln!("name must have less than 13 characters");
+        std::process::exit(2);
+    }
+    let name_host = args.namespace.clone() + "-h";
+    let name_container = args.namespace.clone() + "-c";
+    // Must be generated
+    let ip_host = "10.1.1.1".parse().unwrap_or_else(|_| {
+        eprintln!("invalid address");
+        std::process::exit(1);
+    });
+    let ip_container = "10.1.1.2".parse().unwrap_or_else(|_| {
         eprintln!("invalid address");
         std::process::exit(1);
     });
 
-    match create_veth(link_name1.clone(), link_name2) {
+    match create_veth(name_host.clone(), name_container.clone()) {
         Ok(yes) => yes,
         Err(error) => {
             eprintln!("Error create_veth: {}", error.to_string());
             std::process::exit(1);
         }
     };
-    match add_address(link_name1, ip) {
+    match add_address(name_host.clone(), ip_host) {
         Ok(yes) => yes,
         Err(error) => {
-            eprintln!("Error add_address: {}", error.to_string());
+            eprintln!("Error add_address host: {}", error.to_string());
+            std::process::exit(1);
+        }
+    };
+    match add_address(name_container.clone(), ip_container) {
+        Ok(yes) => yes,
+        Err(error) => {
+            eprintln!("Error add_address container: {}", error.to_string());
             std::process::exit(1);
         }
     };
 
-    match move_veth_to_netns("host-link".to_string(), "test-jerem".to_string()) {
+    match move_veth_to_netns(name_container, args.namespace.clone()) {
         Ok(yes) => yes,
         Err(error) => {
             eprintln!("Error move_veth_to_netns: {}", error.to_string());
