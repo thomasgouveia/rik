@@ -596,7 +596,8 @@ dependencies = [
 
 [[package]]
 name = "proto"
-version = "0.1.2"
+version = "0.1.3"
+source = "git+https://github.com/AlexandreBrg/rik?branch=protolib#3d2730f2cc7120795ed625b673d430545995896a"
 dependencies = [
  "prost",
  "protobuf",

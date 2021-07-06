@@ -14,7 +14,7 @@ pub type WorkloadChannelType = Result<Workload, Status>;
 
 /// The state is shared across multiple threads (Manager & Scheduler)
 /// so it is necessary to have a smart pointer & its mutex
-pub type StateType = HashMap<u32, WorkloadInstance>;
+pub type StateType = HashMap<String, WorkloadInstance>;
 
 #[derive(Debug)]
 pub enum Event {
@@ -224,7 +224,7 @@ impl WorkloadInstance {
         self.worker_id
     }
 
-    pub fn get_instance_id(&self) -> u32 {
+    pub fn get_instance_id(&self) -> String {
         self.workload.instance_id.clone()
     }
 

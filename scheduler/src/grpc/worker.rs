@@ -1,7 +1,6 @@
 use crate::grpc::GRPCService;
-use log::info;
 use proto::common::worker_status::Status;
-use proto::common::{WorkerMetric, WorkerRegistration, WorkerStatus};
+use proto::common::{WorkerRegistration, WorkerStatus};
 use proto::worker::worker_server::Worker as WorkerClient;
 use rik_scheduler::Send;
 use rik_scheduler::{Event, WorkloadChannelType};
