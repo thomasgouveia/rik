@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-
+#[cfg(feature = "manager")]
 use sysinfo::{DiskExt, ProcessorExt, System, SystemExt};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -36,6 +36,7 @@ pub struct Metrics {
 }
 
 impl Metrics {
+    #[cfg(feature = "manager")]
     pub fn fetch(sys: &System) -> Metrics {
         // get cpu information
         let cpu_amount = sys.processors().len() as u8;
@@ -78,6 +79,10 @@ impl Metrics {
 
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(&self)
+    }
+
+    pub fn from_json(json: String) -> Result<Metrics, serde_json::Error> {
+        serde_json::from_str(&json)
     }
 
     pub fn log(&self) {
