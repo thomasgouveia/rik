@@ -1,14 +1,14 @@
 mod controller;
 mod worker;
 
+use crate::state_manager::Workload;
+use definition::workload::{Spec, WorkloadDefinition};
 use log::error;
-use rik_scheduler::{Event, WorkloadRequest};
-use rik_scheduler::Send;
 use proto::controller::WorkloadScheduling;
+use rik_scheduler::Send;
+use rik_scheduler::{Event, WorkloadRequest};
 use tokio::sync::mpsc::Sender;
 use tonic::{Code, Status};
-use definition::workload::{WorkloadDefinition, Spec};
-use crate::state_manager::Workload;
 
 #[derive(Debug, Clone)]
 pub struct GRPCService {
@@ -17,7 +17,6 @@ pub struct GRPCService {
     /// item of the tuple
     sender: Sender<Event>,
 }
-
 
 impl GRPCService {
     pub fn new(sender: Sender<Event>) -> GRPCService {

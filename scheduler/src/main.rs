@@ -4,26 +4,28 @@ mod state_manager;
 
 use crate::config_parser::ConfigParser;
 use crate::grpc::GRPCService;
+use crate::state_manager::{StateManager, StateManagerEvent, Workload};
 use env_logger::Env;
 use log::{debug, error, info, warn};
+use proto::common::worker_status::Status;
+use proto::common::{InstanceMetric, WorkerStatus};
 use proto::controller::controller_server::ControllerServer;
 use proto::worker::worker_server::WorkerServer;
+use proto::worker::InstanceScheduling;
 use rand::seq::IteratorRandom;
-use rik_scheduler::{Controller, SchedulerError, Worker, WorkloadInstance, WorkerRegisterChannelType};
+use rik_scheduler::{Controller, SchedulerError, Worker, WorkerRegisterChannelType};
 use rik_scheduler::{Event, WorkloadChannelType};
 use std::collections::HashMap;
 use std::default::Default;
 use std::net::{SocketAddr, SocketAddrV4};
+use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tonic::transport::Server;
-use tonic::Status;
-use crate::state_manager::{StateManager, StateManagerEvent, Workload};
-use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct Manager {
-    workers: Vec<Worker>,
+    workers: Arc<Mutex<Vec<Worker>>>,
     channel: Receiver<Event>,
     controller: Option<Controller>,
     worker_increment: u8,
@@ -39,7 +41,7 @@ impl Manager {
         let (state_sender, receiver_sender) = channel::<StateManagerEvent>(1024);
 
         let mut instance = Manager {
-            workers: Vec::new(),
+            workers: Arc::new(Mutex::new(Vec::new())),
             channel: receiver,
             controller: None,
             worker_increment: 0,
@@ -47,9 +49,9 @@ impl Manager {
         };
         instance.run_workers_listener(workers_listener, sender.clone());
         instance.run_controllers_listener(controllers_listener, sender.clone());
-
+        let workers = instance.workers.clone();
         tokio::spawn(async move {
-            if let Err(e) = StateManager::new(sender.clone(), receiver_sender).await {
+            if let Err(e) = StateManager::new(sender.clone(), workers, receiver_sender).await {
                 error!("StateManager failed, reason: {}", e);
             }
         });
@@ -89,10 +91,7 @@ impl Manager {
         while let Some(e) = self.channel.recv().await {
             match e {
                 Event::Register(channel, addr, hostname) => {
-                    if let Err(e) = self
-                        .register(channel.clone(), addr, hostname.clone())
-                        .await
-                    {
+                    if let Err(e) = self.register(channel.clone(), addr, hostname.clone()).await {
                         error!(
                             "Failed to register worker {} ({}), reason: {}",
                             hostname, addr, e
@@ -100,28 +99,46 @@ impl Manager {
                     }
                 }
                 Event::ScheduleRequest(workload) => {
-                    debug!(
-                        "New workload definition received to schedule {}",
-                        workload.workload_id
-                    );
-
-                    if let Err(e) = self
-                        .state_manager
-                        .send(StateManagerEvent::Schedule(workload)).await
-                    {
-                        error!(
-                            "Failed to communicate with StateManager, reason: {}",
-                            e
-                        )
+                    if let Some(_) = &self.controller {
+                        if let Err(e) = self
+                            .state_manager
+                            .send(StateManagerEvent::Schedule(workload))
+                            .await
+                        {
+                            error!("Failed to communicate with StateManager, reason: {}", e)
+                        }
+                    } else {
+                        error!("Cannot handle ScheduleRequest if no GetUpdates route from controller is available");
                     }
-/*                    self.update_expected_state(WorkloadInstance::new(workload.clone(), None))
-                        .await;*/
+                }
+                Event::Schedule(worker_id, instance) => {
+                    if let Some(sender) = self.get_worker_sender(&worker_id) {
+                        if let Err(e) = sender.send(Ok(instance)).await {
+                            error!(
+                                "Failed to communicate with worker {}, reason: {}",
+                                worker_id, e
+                            )
+                        }
+                    } else {
+                        error!(
+                            "Received Schedule event with an invalid worker {}",
+                            worker_id
+                        );
+                    }
                 }
                 Event::Subscribe(channel, addr) => {
-                    self.controller = Some(Controller::new(channel.clone(), addr));
+                    if let Some(_) = &self.controller {
+                        error!("Can only have one controller at a time");
+                    } else {
+                        self.controller = Some(Controller::new(channel.clone(), addr));
+                        info!("A controller is now connected");
+                    }
                 }
                 Event::WorkerMetric(identifier, data) => {
-                    if let Some(worker) = self.get_worker_by_hostname(&*identifier) {
+                    let mut workers = self.workers.lock().unwrap();
+                    if let Some(worker) =
+                        workers.iter_mut().find(|worker| worker.id.eq(&*identifier))
+                    {
                         debug!("Updated worker metrics for {}({})", identifier, worker.id);
                         match serde_json::from_str(&data.metrics) {
                             Ok(metric) => worker.set_metrics(metric),
@@ -132,6 +149,19 @@ impl Manager {
                             "Received metrics for a unknown worker ({}), ignoring",
                             identifier
                         );
+                    }
+                }
+                Event::InstanceMetric(identifier, metrics) => {
+                    if let Some(controller) = &self.controller {
+                        if let Err(e) = controller
+                            .send(Ok(WorkerStatus {
+                                identifier,
+                                status: Some(Status::Instance(metrics)),
+                            }))
+                            .await
+                        {
+                            error!("Failed to send InstanceMetric to controller, reason: {}", e);
+                        }
                     }
                 }
                 _ => unimplemented!("You think I'm not implemented ? Hold my beer"),
@@ -150,10 +180,18 @@ impl Manager {
         }
     }
 
-    fn get_worker_by_hostname(&mut self, hostname: &str) -> Option<&mut Worker> {
-        self.workers
+    fn get_worker_sender(&self, hostname: &str) -> Option<Sender<WorkerRegisterChannelType>> {
+        if let Some(worker) = self
+            .workers
+            .lock()
+            .unwrap()
             .iter_mut()
-            .find(|worker| worker.hostname.eq(hostname))
+            .find(|worker| worker.id.eq(hostname))
+        {
+            return Some(worker.channel.clone());
+        }
+
+        None
     }
 
     async fn register(
@@ -162,14 +200,15 @@ impl Manager {
         addr: SocketAddr,
         hostname: String,
     ) -> Result<(), SchedulerError> {
-        if let Some(worker) = self.get_worker_by_hostname(&hostname) {
+        let mut workers = self.workers.lock().unwrap();
+        if let Some(worker) = workers.iter_mut().find(|worker| worker.id.eq(&*hostname)) {
             if !worker.channel.is_closed() {
                 error!(
                     "New worker tried to register with an already taken hostname: {}",
                     hostname
                 );
                 channel
-                    .send(Err(Status::already_exists(
+                    .send(Err(tonic::Status::already_exists(
                         "Worker with this hostname already exist",
                     )))
                     .await
@@ -179,94 +218,14 @@ impl Manager {
                 worker.set_channel(channel);
             }
         } else {
-            let worker = Worker::new(self.get_next_id()?, channel, addr, hostname);
+            let worker = Worker::new(hostname, channel, addr);
             info!(
                 "Worker {} is now registered, ip: {}",
-                worker.hostname, worker.addr
+                worker.id, worker.addr
             );
-            self.workers.push(worker);
+            workers.push(worker);
         }
         Ok(())
-    }
-
-/*    async fn schedule(
-        &mut self,
-        workload: WorkloadInstance,
-    ) -> Result<(), SendError<WorkerRegisterChannelType>> {
-        if !workload.has_worker() {
-            error!("Tried to schedule workload while no worker assigned");
-            return Ok(());
-        }
-        match self.get_worker_sender(workload.get_worker_id().unwrap()) {
-            Some(sender) => {
-                info!(
-                    "A workload was sent to the worker {}: {:?}",
-                    workload.get_worker_id().unwrap(),
-                    workload
-                );
-                sender.send(Ok(workload.get_workload())).await?;
-            }
-            _ => {
-                error!("Tried to schedule workload on a no longer existing worker");
-                return Ok(());
-            }
-        }
-        Ok(())
-    }*/
-
-    fn get_worker_sender(&self, worker_id: u8) -> Option<Sender<WorkerRegisterChannelType>> {
-        for worker in self.workers.iter() {
-            if worker.id == worker_id {
-                return Some(worker.channel.clone());
-            }
-        }
-
-        None
-    }
-
-/*    async fn update_expected_state(&mut self, item: WorkloadInstance) {
-        let instance_id = item.get_workload_id();
-        let old_instance = self.expected_state.insert(instance_id.clone(), item);
-
-        match old_instance {
-            Some(_) => debug!("Instance {} updated into the expected state", instance_id),
-            None => debug!(
-                "Inserted a new instance into the expected state, id: {}",
-                instance_id
-            ),
-        };
-
-        self.scan_diff_state().await;
-    }*/
-/*
-    async fn scan_diff_state(&mut self) {
-        for (instance_id, workload) in self.expected_state.clone().iter() {
-            if !self.state.contains_key(instance_id) {
-                info!("Detected diff between expected state & new state, updating with instance_id {}", instance_id);
-                let worker = self.get_eligible_worker();
-                match worker {
-                    Some(worker) => {
-                        let mut workload = workload.clone();
-                        workload.set_worker(worker.id);
-                        if let Err(e) = self.schedule(workload.clone()).await {
-                            error!(
-                                "Could not schedule workload {}, error: {}",
-                                workload.get_workload_id(),
-                                e
-                            )
-                        } else {
-                            self.state.insert(workload.get_workload_id(), workload);
-                        }
-                    }
-                    _ => error!("How can I schedule IF THERE IS NO WORKER ?"),
-                };
-            }
-        }
-    }*/
-
-    fn get_eligible_worker(&self) -> Option<&Worker> {
-        let workers = self.workers.iter().filter(|worker| worker.is_ready());
-        workers.choose(&mut rand::thread_rng())
     }
 }
 

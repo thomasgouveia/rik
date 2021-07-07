@@ -1,25 +1,29 @@
 use crate::grpc::GRPCService;
-use log::{info, error};
-use proto::controller::WorkloadScheduling;
-use rik_scheduler::{Event, WorkloadRequest};
+use log::{error, info};
 use proto::common::WorkerStatus;
 use proto::controller::controller_server::Controller as ControllerClient;
+use proto::controller::WorkloadScheduling;
 use rik_scheduler::Send;
+use rik_scheduler::{Event, WorkloadRequest};
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
 #[tonic::async_trait]
 impl ControllerClient for GRPCService {
-    async fn schedule_instance(&self, _request: Request<WorkloadScheduling>) -> Result<Response<()>, Status> {
-        let parsed_body = _request.get_ref().clone().unpack()
-            .map_err(|e| {
-                error!("Failed to parse ScheduleInstance from controller, reason: {}", e);
-                Status::invalid_argument(e.to_string())
-            })?;
-        let result: Result<(), Status>;
-        self.send(Event::ScheduleRequest(parsed_body))
-            .await?;
+    async fn schedule_instance(
+        &self,
+        _request: Request<WorkloadScheduling>,
+    ) -> Result<Response<()>, Status> {
+        let parsed_body = _request.get_ref().clone().unpack().map_err(|e| {
+            error!(
+                "Failed to parse ScheduleInstance from controller, reason: {}",
+                e
+            );
+            Status::invalid_argument(e.to_string())
+        })?;
+
+        self.send(Event::ScheduleRequest(parsed_body)).await?;
 
         Ok(Response::new(()))
     }
@@ -43,6 +47,7 @@ impl ControllerClient for GRPCService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use definition::workload::{Spec, WorkloadDefinition};
     use std::net::SocketAddr;
     use tokio::sync::mpsc::error::SendError;
     use tonic::{Code, Request};
@@ -52,9 +57,16 @@ mod tests {
         let (sender, mut receiver) = channel::<Event>(1024);
 
         let service = GRPCService::new(sender);
-        let workload = WorkloadScheduling {
-            instance_id: "uuid".to_string(),
-            definition: "{}".to_string(),
+        let workload = WorkloadRequest {
+            workload_id: "test".to_string(),
+            definition: WorkloadDefinition {
+                api_version: "v1".to_string(),
+                kind: "Pod".to_string(),
+                name: "Test".to_string(),
+                spec: Spec { containers: vec![] },
+                replicas: Some(1),
+            },
+            action: WorkloadRequestKind::Create,
         };
 
         let mock_request = Request::new(workload.clone());
@@ -118,7 +130,6 @@ mod tests {
     }
 }
 
-
 trait UnPacker<T> {
     fn unpack(self) -> Result<T, serde_json::Error>;
 }
@@ -128,4 +139,3 @@ impl UnPacker<WorkloadRequest> for WorkloadScheduling {
         WorkloadRequest::new(self)
     }
 }
-

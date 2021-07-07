@@ -1,4 +1,5 @@
-use log::info;
+use definition::workload::WorkloadDefinition;
+use log::{error, info};
 use node_metrics::Metrics;
 use proto::common::{InstanceMetric, WorkerMetric, WorkerStatus, WorkloadRequestKind};
 use proto::controller::WorkloadScheduling;
@@ -7,9 +8,9 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::net::SocketAddr;
+use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::Sender;
 use tonic::Status;
-use definition::workload::WorkloadDefinition;
 
 /// Define the structure of message send through the channel between
 /// the manager and a worker
@@ -25,11 +26,15 @@ pub enum Event {
     /// Controller can send workload, we use the verb Schedule to describe
     /// this event
     ScheduleRequest(WorkloadRequest),
+    /// The StateManager uses this event to send a workload to a worker
+    /// String is for the worker id
+    Schedule(String, InstanceScheduling),
     /// This is meant for a controller subscription event
     /// Controller subscribe to the scheduler in order to get updqtes
     Subscribe(Sender<Result<WorkerStatus, Status>>, SocketAddr),
     /// Metrics received from workers to tell about themselves.
-    /// The first string is the identifier
+    /// The first string is the identifier, this event will send your metrics
+    /// to the controller
     /// ```
     /// use proto::common::{WorkerMetric};
     /// let metrics = WorkerMetric {
@@ -38,15 +43,23 @@ pub enum Event {
     /// };
     /// ```
     WorkerMetric(String, WorkerMetric),
-    /// Metrics relative to a single instance of a workload
+    /// Metrics received from workers to tell about themselves
+    /// These metrics will be used inside the state manager
+    WorkerMetricsUpdate(String, WorkerMetric),
+    /// Metrics relative to a single instance of a workload, this event will
+    /// send your metrics to the controller
     /// ```
     /// use proto::common::{InstanceMetric};
     /// let metrics = InstanceMetric {
     ///     status: 1,
-    ///     metrics: "{metricA: 10, metricB: 100}".to_string()
+    ///     metrics: "{metricA: 10, metricB: 100}".to_string(),
+    ///     instance_id: "test"
     /// };
     /// ```
     InstanceMetric(String, InstanceMetric),
+    /// Metrics received from workers to tell about themselves
+    /// These metrics will be used inside the state manager
+    InstanceMetricsUpdate(String, InstanceMetric),
 }
 
 #[derive(Debug)]
@@ -59,6 +72,12 @@ pub enum SchedulerError {
     /// gRPC client got disconnected
     ClientDisconnected,
     StateManagerFailed,
+    /// In case we are destroying a workload and trying at the same time to re-schedule
+    /// the workload, we prevent it
+    CannotDoubleReplicas,
+    /// In case we are ordering something but the workload doesn't exist in the
+    /// memory
+    WorkloadDontExists(String),
 }
 
 impl fmt::Display for SchedulerError {
@@ -100,12 +119,25 @@ impl Controller {
     pub fn new(channel: Sender<Result<WorkerStatus, Status>>, addr: SocketAddr) -> Controller {
         Controller { channel, addr }
     }
+
+    pub async fn send(
+        &self,
+        data: Result<WorkerStatus, Status>,
+    ) -> Result<(), SendError<Result<WorkerStatus, Status>>> {
+        self.channel.send(data).await.map_err(|e| {
+            error!(
+                "Failed to send message from Manager to Controller, error: {}",
+                e
+            );
+            e
+        })
+    }
 }
 
 #[derive(Debug)]
 pub struct Worker {
-    /// Unique ID for the worker, only used internally for now
-    pub id: u8,
+    /// Worker hostname, must be unique
+    pub id: String,
     /// This channel is used to communicate between the manager
     /// and the worker instance
     /// # Examples
@@ -117,13 +149,11 @@ pub struct Worker {
     /// use tokio::sync::mpsc::{channel, Receiver, Sender};
     /// use std::net::{SocketAddr, IpAddr, Ipv4Addr};
     /// let (sender, receiver) = channel::<WorkloadChannelType>(1024);
-    /// let worker = Worker::new(0, sender, "127.0.0.1:8080".parse().unwrap(), "debian-test".to_string());
+    /// let worker = Worker::new("debian-test".to_string(), sender, "127.0.0.1:8080".parse().unwrap());
     /// ```
     pub channel: Sender<WorkerRegisterChannelType>,
     /// Remote addr of the worker
     pub addr: SocketAddr,
-    /// Worker hostname, must be unique
-    pub hostname: String,
     /// State of worker
     state: WorkerState,
     /// Most recent metric the worker has on its state
@@ -131,17 +161,11 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub fn new(
-        id: u8,
-        channel: Sender<WorkerRegisterChannelType>,
-        addr: SocketAddr,
-        hostname: String,
-    ) -> Worker {
+    pub fn new(id: String, channel: Sender<WorkerRegisterChannelType>, addr: SocketAddr) -> Worker {
         Worker {
             id,
             channel,
             addr,
-            hostname,
             state: WorkerState::NotReady,
             metric: None,
         }
@@ -153,7 +177,7 @@ impl Worker {
 
     pub fn set_state(&mut self, state: WorkerState) {
         self.state = state;
-        info!("Worker {} flipped to {} state", self.hostname, self.state);
+        info!("Worker {} flipped to {} state", self.id, self.state);
     }
 
     pub fn get_state(&self) -> &WorkerState {
@@ -184,6 +208,13 @@ impl Worker {
         }
     }
 
+    pub async fn send(&self, data: InstanceScheduling) -> Result<(), SchedulerError> {
+        self.channel.send(Ok(data)).await.map_err(|e| {
+            error!("Failed to send message to remote worker, error: {}", e);
+            SchedulerError::ClientDisconnected
+        })
+    }
+
     pub fn is_ready(&self) -> bool {
         matches!(self.state, WorkerState::Ready)
     }
@@ -194,49 +225,11 @@ pub trait Send<T> {
     async fn send(&self, data: T) -> Result<(), Status>;
 }
 
-#[derive(Debug, Clone)]
-pub struct WorkloadInstance {
-    worker_id: Option<u8>,
-    workload: WorkloadScheduling,
-}
-
-impl WorkloadInstance {
-    pub fn new(workload: WorkloadScheduling, worker: Option<Worker>) -> WorkloadInstance {
-        WorkloadInstance {
-            workload,
-            worker_id: match worker {
-                Some(worker) => Some(worker.id),
-                _ => None,
-            },
-        }
-    }
-
-    pub fn set_worker(&mut self, id: u8) {
-        self.worker_id = Some(id);
-    }
-
-    pub fn has_worker(&self) -> bool {
-        self.worker_id.is_some()
-    }
-
-    pub fn get_worker_id(&self) -> Option<u8> {
-        self.worker_id
-    }
-
-    pub fn get_workload_id(&self) -> String {
-        self.workload.workload_id.clone()
-    }
-
-    pub fn get_workload(self) -> WorkloadScheduling {
-        self.workload
-    }
-}
-
 #[derive(Debug)]
 pub struct WorkloadRequest {
     pub workload_id: String,
     pub definition: WorkloadDefinition,
-    pub request: WorkloadRequestKind
+    pub action: WorkloadRequestKind,
 }
 
 impl WorkloadRequest {
@@ -244,7 +237,7 @@ impl WorkloadRequest {
         Ok(WorkloadRequest {
             workload_id: workload.workload_id,
             definition: serde_json::from_str(&workload.definition)?,
-            request: match workload.request {
+            action: match workload.action {
                 1 => WorkloadRequestKind::Destroy,
                 _ => WorkloadRequestKind::Create,
             },
