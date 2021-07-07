@@ -3,7 +3,7 @@ use std::fmt;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Tenant {
-    pub id: usize,
+    pub id: String,
     pub name: String,
     pub value: String,
 }

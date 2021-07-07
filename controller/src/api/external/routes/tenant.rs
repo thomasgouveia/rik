@@ -46,7 +46,7 @@ pub fn create(
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
     let mut content = String::new();
     req.as_reader().read_to_string(&mut content).unwrap();
-    let tenant: Tenant = serde_json::from_str(&content).unwrap();
+    let tenant: Tenant = serde_json::from_str(&content)?;
 
     if let Ok(_) = RikRepository::insert(connection, &tenant.name, &tenant.value) {
         logger
@@ -79,10 +79,10 @@ pub fn delete(
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
     let mut content = String::new();
     req.as_reader().read_to_string(&mut content).unwrap();
-    let OnlyId { id: delete_id } = serde_json::from_str(&content).unwrap();
+    let OnlyId { id: delete_id } = serde_json::from_str(&content)?;
 
-    if let Ok(tenant) = RikRepository::find_one(connection, delete_id, "/tenant") {
-        RikRepository::delete(connection, tenant.id).unwrap();
+    if let Ok(tenant) = RikRepository::find_one(connection, &delete_id, "/tenant") {
+        RikRepository::delete(connection, &tenant.id).unwrap();
 
         logger
             .send(LoggingChannel {

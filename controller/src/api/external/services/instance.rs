@@ -1,6 +1,6 @@
-use crate::api::types::workload::WorkloadDefinition;
 use crate::api::{ApiChannel, CRUD};
 use crate::database::RikRepository;
+use definition::workload::WorkloadDefinition;
 use names::Generator;
 use rusqlite::Connection;
 use std::sync::mpsc::Sender;
@@ -8,7 +8,7 @@ use std::sync::mpsc::Sender;
 pub fn send_create_instance(
     connection: &Connection,
     internal_sender: &Sender<ApiChannel>,
-    workload_id: usize,
+    workload_id: String,
     name: &Option<String>,
 ) {
     let mut random_name_generator = Generator::default();
@@ -18,27 +18,25 @@ pub fn send_create_instance(
         None => &random_name,
     };
 
-    let workload_db = match RikRepository::find_one(connection, workload_id, "/workload") {
+    let workload_db = match RikRepository::find_one(connection, &workload_id, "/workload") {
         Ok(workload) => workload,
         Err(err) => panic!("{}", err),
     };
     let workload: WorkloadDefinition =
         serde_json::from_str(&workload_db.value.to_string()).unwrap();
 
-    RikRepository::insert(
+    let instance_id: String = RikRepository::insert(
         connection,
         &format!("/instance/{}/default/{}", workload.kind, instance_name),
-        &format!("{{\"workload_id\": \"{}\"}}", workload_id),
+        &format!("{{\"workload_id\": \"{}\"}}", &workload_id),
     )
     .unwrap();
-    let instance_id = connection.last_insert_rowid();
-
     internal_sender
         .send(ApiChannel {
             action: CRUD::Create,
             workload_id: Some(workload_id),
             workload_definition: Some(workload),
-            instance_id: Some(instance_id as usize),
+            instance_id: Some(instance_id),
         })
         .unwrap();
 }

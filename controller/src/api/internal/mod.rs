@@ -3,12 +3,13 @@ use crate::database::RikDataBase;
 use crate::database::RikRepository;
 use crate::logger::{LogType, LoggingChannel};
 use dotenv::dotenv;
-use proto::common::Workload;
 use proto::controller::controller_client::ControllerClient;
+use proto::controller::WorkloadScheduling;
 use rusqlite::Connection;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use tonic;
+use uuid::Uuid;
 
 #[derive(Clone)]
 struct RikControllerClient {
@@ -27,7 +28,10 @@ impl RikControllerClient {
         Ok(RikControllerClient { client })
     }
 
-    pub async fn schedule_instance(&mut self, instance: Workload) -> Result<(), tonic::Status> {
+    pub async fn schedule_instance(
+        &mut self,
+        instance: WorkloadScheduling,
+    ) -> Result<(), tonic::Status> {
         let request = tonic::Request::new(instance);
         self.client.schedule_instance(request).await?;
         Ok(())
@@ -41,9 +45,10 @@ impl RikControllerClient {
         let request = tonic::Request::new(());
 
         let mut stream = self.client.get_status_updates(request).await?.into_inner();
+        // TODO
         while let Some(status) = stream.message().await? {
             println!("Instance Status {:?}", status);
-            RikRepository::update(&connection, 1).unwrap();
+            RikRepository::update(&connection, &Uuid::new_v4().to_string()).unwrap();
         }
         Ok(())
     }
@@ -91,19 +96,20 @@ impl Server {
                     self.logger
                         .send(LoggingChannel {
                             message: format!(
-                                "Ctrl to scheduler create instance: {:?}, workload_id : {:?}",
-                                notification.instance_id, notification.workload_id
+                                "Ctrl to scheduler schedule instance workload_id : {:?}",
+                                notification.workload_id
                             ),
                             log_type: LogType::Log,
                         })
                         .unwrap();
-                    if let Some(instance_id) = notification.instance_id {
+                    if let Some(workload_id) = notification.workload_id {
                         if let Some(workload_definition) = notification.workload_definition {
                             client
-                                .schedule_instance(Workload {
-                                    instance_id: instance_id as u32,
+                                .schedule_instance(WorkloadScheduling {
+                                    workload_id: workload_id,
                                     definition: serde_json::to_string(&workload_definition)
                                         .unwrap(),
+                                    action: CRUD::Create as i32,
                                 })
                                 .await
                                 .unwrap();
@@ -122,6 +128,19 @@ impl Server {
                             log_type: LogType::Log,
                         })
                         .unwrap();
+                    if let Some(workload_id) = notification.workload_id {
+                        if let Some(workload_definition) = notification.workload_definition {
+                            client
+                                .schedule_instance(WorkloadScheduling {
+                                    workload_id: workload_id,
+                                    definition: serde_json::to_string(&workload_definition)
+                                        .unwrap(),
+                                    action: CRUD::Delete as i32,
+                                })
+                                .await
+                                .unwrap();
+                        }
+                    }
                 }
             }
         }

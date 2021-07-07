@@ -3,19 +3,19 @@ use std::fmt;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OnlyId {
-    pub id: usize,
+    pub id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Element {
-    pub id: usize,
+    pub id: String,
     pub name: String,
     pub value: serde_json::Value,
 }
 
 #[allow(dead_code)]
 impl Element {
-    pub fn new(id: usize, name: String, value: String) -> Element {
+    pub fn new(id: String, name: String, value: String) -> Element {
         Element {
             id,
             name,

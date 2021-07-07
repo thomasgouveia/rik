@@ -2,13 +2,13 @@ pub mod external;
 pub mod internal;
 pub mod types;
 
-use crate::api::types::workload::WorkloadDefinition;
+use definition::workload::WorkloadDefinition;
 use std::fmt::{Display, Formatter, Result};
 #[allow(dead_code)]
 #[derive(Debug)]
 pub enum CRUD {
-    Create,
-    Delete,
+    Create = 0,
+    Delete = 1,
 }
 
 #[derive(Debug)]
@@ -48,8 +48,8 @@ impl From<serde_json::Error> for RikError {
 
 pub struct ApiChannel {
     action: CRUD,
-    workload_id: Option<usize>,
-    instance_id: Option<usize>,
+    workload_id: Option<String>,
+    instance_id: Option<String>,
     workload_definition: Option<WorkloadDefinition>,
 }
 impl Display for ApiChannel {

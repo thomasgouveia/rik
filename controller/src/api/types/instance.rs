@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InstanceDefinition {
     pub name: Option<String>,
-    pub workload_id: usize,
+    pub workload_id: String,
     pub replicas: Option<usize>,
 }
 

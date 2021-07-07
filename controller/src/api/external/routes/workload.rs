@@ -1,10 +1,11 @@
 use crate::api;
 use crate::api::external::services::element::elements_set_right_name;
 use crate::api::types::element::OnlyId;
-use crate::api::types::workload::WorkloadDefinition;
-use crate::api::ApiChannel;
+use crate::api::{ApiChannel, CRUD};
 use crate::database::RikRepository;
 use crate::logger::{LogType, LoggingChannel};
+
+use definition::workload::WorkloadDefinition;
 use route_recognizer;
 use rusqlite::Connection;
 use std::io;
@@ -74,7 +75,7 @@ pub fn create(
         let workload_id: OnlyId = OnlyId { id: inserted_id };
         logger
             .send(LoggingChannel {
-                message: String::from(format!("Workload {} successfully created", inserted_id)),
+                message: String::from(format!("Workload {} successfully created", &workload_id.id)),
                 log_type: LogType::Log,
             })
             .unwrap();
@@ -99,15 +100,24 @@ pub fn delete(
     req: &mut tiny_http::Request,
     _: &route_recognizer::Params,
     connection: &Connection,
-    _: &Sender<ApiChannel>,
+    internal_sender: &Sender<ApiChannel>,
     logger: &Sender<LoggingChannel>,
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
     let mut content = String::new();
     req.as_reader().read_to_string(&mut content).unwrap();
-    let OnlyId { id: delete_id } = serde_json::from_str(&content).unwrap();
+    let OnlyId { id: delete_id } = serde_json::from_str(&content)?;
 
-    if let Ok(workload) = RikRepository::find_one(connection, delete_id, "/workload") {
-        RikRepository::delete(connection, workload.id).unwrap();
+    if let Ok(workload) = RikRepository::find_one(connection, &delete_id, "/workload") {
+        let definition: WorkloadDefinition = serde_json::from_value(workload.value).unwrap();
+        internal_sender
+            .send(ApiChannel {
+                action: CRUD::Delete,
+                workload_id: Some(delete_id),
+                workload_definition: Some(definition),
+                instance_id: None,
+            })
+            .unwrap();
+        RikRepository::delete(connection, &workload.id).unwrap();
 
         logger
             .send(LoggingChannel {
@@ -129,3 +139,5 @@ pub fn delete(
         )
     }
 }
+
+

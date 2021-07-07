@@ -51,16 +51,16 @@ pub fn create(
     let mut instance: InstanceDefinition = serde_json::from_str(&content)?;
 
     //Workload not found
-    if let Err(_) = RikRepository::find_one(connection, instance.workload_id, "/workload") {
+    if let Err(_) = RikRepository::find_one(connection, &instance.workload_id, "/workload") {
         logger
             .send(LoggingChannel {
-                message: String::from(format!("Workload id {} not found", instance.workload_id)),
+                message: String::from(format!("Workload id {} not found", &instance.workload_id)),
                 log_type: LogType::Warn,
             })
             .unwrap();
         return Ok(tiny_http::Response::from_string(format!(
             "Workload id {} not found",
-            instance.workload_id
+            &instance.workload_id
         ))
         .with_status_code(tiny_http::StatusCode::from(404)));
     }
@@ -94,7 +94,7 @@ pub fn create(
         send_create_instance(
             connection,
             internal_sender,
-            instance.workload_id,
+            instance.workload_id.clone(),
             &instance.name,
         );
     }
@@ -111,9 +111,9 @@ pub fn delete(
 ) -> Result<tiny_http::Response<io::Cursor<Vec<u8>>>, api::RikError> {
     let mut content = String::new();
     req.as_reader().read_to_string(&mut content).unwrap();
-    let OnlyId { id: delete_id } = serde_json::from_str(&content).unwrap();
+    let OnlyId { id: delete_id } = serde_json::from_str(&content)?;
 
-    if let Ok(instance) = RikRepository::find_one(connection, delete_id, "/instance") {
+    if let Ok(instance) = RikRepository::find_one(connection, &delete_id, "/instance") {
         internal_sender
             .send(ApiChannel {
                 action: CRUD::Delete,
@@ -122,7 +122,7 @@ pub fn delete(
                 instance_id: Some(delete_id),
             })
             .unwrap();
-        RikRepository::delete(connection, instance.id).unwrap();
+        RikRepository::delete(connection, &instance.id).unwrap();
 
         logger
             .send(LoggingChannel {
