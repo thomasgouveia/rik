@@ -81,11 +81,7 @@ async fn set_up_veth_in_netns(link_name: String, netns: String) -> Result<(), Er
     Command::new("sh")
         .arg("-c")
         .arg(
-            "ip link set netns".to_string()
-                + netns.as_str()
-                + " exec ip link set "
-                + link_name.as_str()
-                + " up",
+            "ip netns exec ".to_string() + netns.as_str() + " ip link set up " + link_name.as_str(),
         )
         .output()
         .expect("failed to execute process");
@@ -135,7 +131,7 @@ fn main() -> Result<(), String> {
         }
     };
 
-    match move_veth_to_netns(name_container, args.namespace.clone()) {
+    match move_veth_to_netns(name_container.clone(), args.namespace.clone()) {
         Ok(yes) => yes,
         Err(error) => {
             eprintln!("Error move_veth_to_netns: {}", error.to_string());
@@ -151,7 +147,7 @@ fn main() -> Result<(), String> {
         }
     };
 
-    match set_up_veth_in_netns(name_host, args.namespace.clone()) {
+    match set_up_veth_in_netns(name_container, args.namespace.clone()) {
         Ok(yes) => yes,
         Err(error) => {
             eprintln!("Error set_up_veth_in_netns: {}", error.to_string());
