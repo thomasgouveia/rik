@@ -59,6 +59,39 @@ fn move_veth_to_netns(veth: String, netns: String) -> Result<(), Error> {
     Ok(())
 }
 
+#[tokio::main]
+async fn set_up_veth(link_name: String) -> Result<(), Error> {
+    let (connection, handle, _) = new_connection().unwrap();
+    tokio::spawn(connection);
+    let mut links = handle
+        .link()
+        .get()
+        .set_name_filter(link_name.clone())
+        .execute();
+    if let Some(link) = links.try_next().await? {
+        handle.link().set(link.header.index).up().execute().await?
+    } else {
+        println!("no link link {} found", link_name);
+    }
+    Ok(())
+}
+
+#[tokio::main]
+async fn set_up_veth_in_netns(link_name: String, netns: String) -> Result<(), Error> {
+    Command::new("sh")
+        .arg("-c")
+        .arg(
+            "ip link set netns".to_string()
+                + netns.as_str()
+                + " exec ip link set "
+                + link_name.as_str()
+                + " up",
+        )
+        .output()
+        .expect("failed to execute process");
+    Ok(())
+}
+
 fn main() -> Result<(), String> {
     let args = Args::parse();
 
@@ -106,6 +139,22 @@ fn main() -> Result<(), String> {
         Ok(yes) => yes,
         Err(error) => {
             eprintln!("Error move_veth_to_netns: {}", error.to_string());
+            std::process::exit(1);
+        }
+    };
+
+    match set_up_veth(name_host.clone()) {
+        Ok(yes) => yes,
+        Err(error) => {
+            eprintln!("Error set_up_veth: {}", error.to_string());
+            std::process::exit(1);
+        }
+    };
+
+    match set_up_veth_in_netns(name_host, args.namespace.clone()) {
+        Ok(yes) => yes,
+        Err(error) => {
+            eprintln!("Error set_up_veth_in_netns: {}", error.to_string());
             std::process::exit(1);
         }
     };
