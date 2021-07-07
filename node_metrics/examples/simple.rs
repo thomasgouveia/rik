@@ -1,8 +1,9 @@
-use node_metrics::Metrics;
+use node_metrics::MetricsManager;
 
 fn main() {
-    let metrics = Metrics::new();
-    metrics.log();
+    let mut metrics_manager = MetricsManager::new();
+    metrics_manager.log();
+    let metrics = metrics_manager.fetch();
     let json = metrics.to_json().unwrap();
     println!("{}", json);
 }

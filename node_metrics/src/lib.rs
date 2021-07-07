@@ -27,6 +27,7 @@ pub struct DiskMetrics {
     pub free: u64,
 }
 
+/// Struct of node metrics
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Metrics {
     pub cpu: CpuMetrics,
@@ -35,10 +36,7 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    pub fn new() -> Metrics {
-        let mut sys = System::new_all();
-        sys.refresh_all();
-
+    pub fn fetch(sys: &System) -> Metrics {
         // get cpu information
         let cpu_amount = sys.processors().len() as u8;
         let mut avg_cpu_usage = 0.0;
@@ -84,5 +82,27 @@ impl Metrics {
 
     pub fn log(&self) {
         println!("{:?}", self)
+    }
+}
+
+/// Struct managing node metrics
+#[derive(Debug)]
+pub struct MetricsManager {
+    /// contains system's information
+    pub system: System,
+}
+
+impl MetricsManager {
+    /// Create MetricsManager
+    pub fn new() -> MetricsManager {
+        let sys = System::new_all();
+
+        MetricsManager { system: sys }
+    }
+
+    /// Fetch system information
+    pub fn fetch(&mut self) -> Metrics {
+        self.system.refresh_all();
+        Metrics::fetch(&self.system)
     }
 }
