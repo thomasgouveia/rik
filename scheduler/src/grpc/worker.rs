@@ -2,7 +2,8 @@ use crate::grpc::GRPCService;
 use proto::common::worker_status::Status;
 use proto::common::{WorkerRegistration, WorkerStatus};
 use proto::worker::worker_server::Worker as WorkerClient;
-use rik_scheduler::Send;
+use proto::worker::InstanceScheduling;
+use rik_scheduler::{Send, WorkerRegisterChannelType};
 use rik_scheduler::{Event, WorkloadChannelType};
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
@@ -11,14 +12,14 @@ use tonic::{Request, Response};
 
 #[tonic::async_trait]
 impl WorkerClient for GRPCService {
-    type RegisterStream = ReceiverStream<WorkloadChannelType>;
+    type RegisterStream = ReceiverStream<WorkerRegisterChannelType>;
 
     async fn register(
         &self,
         _request: Request<WorkerRegistration>,
     ) -> Result<Response<Self::RegisterStream>, tonic::Status> {
         // Streaming channel that sends workloads
-        let (stream_tx, stream_rx) = channel::<WorkloadChannelType>(1024);
+        let (stream_tx, stream_rx) = channel::<WorkerRegisterChannelType>(1024);
         let addr = _request
             .remote_addr()
             .unwrap_or_else(|| "0.0.0.0:000".parse().unwrap());

@@ -1,29 +1,30 @@
 use log::info;
 use node_metrics::Metrics;
-use proto::common::{InstanceMetric, WorkerMetric, WorkerStatus, Workload};
+use proto::common::{InstanceMetric, WorkerMetric, WorkerStatus, WorkloadRequestKind};
+use proto::controller::WorkloadScheduling;
+use proto::worker::InstanceScheduling;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::net::SocketAddr;
 use tokio::sync::mpsc::Sender;
 use tonic::Status;
+use definition::workload::WorkloadDefinition;
 
 /// Define the structure of message send through the channel between
 /// the manager and a worker
-pub type WorkloadChannelType = Result<Workload, Status>;
+pub type WorkloadChannelType = Result<WorkloadScheduling, Status>;
 
-/// The state is shared across multiple threads (Manager & Scheduler)
-/// so it is necessary to have a smart pointer & its mutex
-pub type StateType = HashMap<String, WorkloadInstance>;
+pub type WorkerRegisterChannelType = Result<InstanceScheduling, tonic::Status>;
 
 #[derive(Debug)]
 pub enum Event {
     /// Workers register to the Scheduler so they can serve
     /// the cluster
-    Register(Sender<WorkloadChannelType>, SocketAddr, String),
+    Register(Sender<WorkerRegisterChannelType>, SocketAddr, String),
     /// Controller can send workload, we use the verb Schedule to describe
     /// this event
-    ScheduleRequest(Workload),
+    ScheduleRequest(WorkloadRequest),
     /// This is meant for a controller subscription event
     /// Controller subscribe to the scheduler in order to get updqtes
     Subscribe(Sender<Result<WorkerStatus, Status>>, SocketAddr),
@@ -57,6 +58,7 @@ pub enum SchedulerError {
     RegistrationFailed(String),
     /// gRPC client got disconnected
     ClientDisconnected,
+    StateManagerFailed,
 }
 
 impl fmt::Display for SchedulerError {
@@ -117,7 +119,7 @@ pub struct Worker {
     /// let (sender, receiver) = channel::<WorkloadChannelType>(1024);
     /// let worker = Worker::new(0, sender, "127.0.0.1:8080".parse().unwrap(), "debian-test".to_string());
     /// ```
-    pub channel: Sender<WorkloadChannelType>,
+    pub channel: Sender<WorkerRegisterChannelType>,
     /// Remote addr of the worker
     pub addr: SocketAddr,
     /// Worker hostname, must be unique
@@ -131,7 +133,7 @@ pub struct Worker {
 impl Worker {
     pub fn new(
         id: u8,
-        channel: Sender<WorkloadChannelType>,
+        channel: Sender<WorkerRegisterChannelType>,
         addr: SocketAddr,
         hostname: String,
     ) -> Worker {
@@ -145,7 +147,7 @@ impl Worker {
         }
     }
 
-    pub fn set_channel(&mut self, sender: Sender<WorkloadChannelType>) {
+    pub fn set_channel(&mut self, sender: Sender<WorkerRegisterChannelType>) {
         self.channel = sender;
     }
 
@@ -195,11 +197,11 @@ pub trait Send<T> {
 #[derive(Debug, Clone)]
 pub struct WorkloadInstance {
     worker_id: Option<u8>,
-    workload: Workload,
+    workload: WorkloadScheduling,
 }
 
 impl WorkloadInstance {
-    pub fn new(workload: Workload, worker: Option<Worker>) -> WorkloadInstance {
+    pub fn new(workload: WorkloadScheduling, worker: Option<Worker>) -> WorkloadInstance {
         WorkloadInstance {
             workload,
             worker_id: match worker {
@@ -221,11 +223,31 @@ impl WorkloadInstance {
         self.worker_id
     }
 
-    pub fn get_instance_id(&self) -> String {
-        self.workload.instance_id.clone()
+    pub fn get_workload_id(&self) -> String {
+        self.workload.workload_id.clone()
     }
 
-    pub fn get_workload(self) -> Workload {
+    pub fn get_workload(self) -> WorkloadScheduling {
         self.workload
+    }
+}
+
+#[derive(Debug)]
+pub struct WorkloadRequest {
+    pub workload_id: String,
+    pub definition: WorkloadDefinition,
+    pub request: WorkloadRequestKind
+}
+
+impl WorkloadRequest {
+    pub fn new(workload: WorkloadScheduling) -> Result<WorkloadRequest, serde_json::Error> {
+        Ok(WorkloadRequest {
+            workload_id: workload.workload_id,
+            definition: serde_json::from_str(&workload.definition)?,
+            request: match workload.request {
+                1 => WorkloadRequestKind::Destroy,
+                _ => WorkloadRequestKind::Create,
+            },
+        })
     }
 }

@@ -1,8 +1,9 @@
 use crate::grpc::GRPCService;
-use log::info;
-use proto::common::{WorkerStatus, Workload};
+use log::{info, error};
+use proto::controller::WorkloadScheduling;
+use rik_scheduler::{Event, WorkloadRequest};
+use proto::common::WorkerStatus;
 use proto::controller::controller_server::Controller as ControllerClient;
-use rik_scheduler::Event;
 use rik_scheduler::Send;
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
@@ -10,18 +11,15 @@ use tonic::{Request, Response, Status};
 
 #[tonic::async_trait]
 impl ControllerClient for GRPCService {
-    async fn schedule_instance(&self, _request: Request<Workload>) -> Result<Response<()>, Status> {
-        self.send(Event::ScheduleRequest(_request.get_ref().clone()))
+    async fn schedule_instance(&self, _request: Request<WorkloadScheduling>) -> Result<Response<()>, Status> {
+        let parsed_body = _request.get_ref().clone().unpack()
+            .map_err(|e| {
+                error!("Failed to parse ScheduleInstance from controller, reason: {}", e);
+                Status::invalid_argument(e.to_string())
+            })?;
+        let result: Result<(), Status>;
+        self.send(Event::ScheduleRequest(parsed_body))
             .await?;
-
-        Ok(Response::new(()))
-    }
-
-    async fn unschedule_instance(
-        &self,
-        _request: Request<Workload>,
-    ) -> Result<Response<()>, Status> {
-        info!("Received unscheduling order");
 
         Ok(Response::new(()))
     }
@@ -54,7 +52,7 @@ mod tests {
         let (sender, mut receiver) = channel::<Event>(1024);
 
         let service = GRPCService::new(sender);
-        let workload = Workload {
+        let workload = WorkloadScheduling {
             instance_id: "uuid".to_string(),
             definition: "{}".to_string(),
         };
@@ -119,3 +117,15 @@ mod tests {
         Ok(())
     }
 }
+
+
+trait UnPacker<T> {
+    fn unpack(self) -> Result<T, serde_json::Error>;
+}
+
+impl UnPacker<WorkloadRequest> for WorkloadScheduling {
+    fn unpack(self) -> Result<WorkloadRequest, serde_json::Error> {
+        WorkloadRequest::new(self)
+    }
+}
+
