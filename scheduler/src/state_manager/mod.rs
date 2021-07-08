@@ -85,6 +85,7 @@ impl StateManager {
                     self.process_metric_update(identifier, metrics)
                 }
             };
+            self.scan_workers();
             self.update_state().await;
         }
         Err(SchedulerError::StateManagerFailed)
@@ -98,6 +99,40 @@ impl StateManager {
             );
             SchedulerError::ClientDisconnected
         })
+    }
+
+    fn scan_workers(&mut self) {
+        let mut deactivated_workers = Vec::new();
+        let mut state = self.workers.lock().unwrap();
+        {
+            for worker in state.iter_mut() {
+                if worker.channel.is_closed() && worker.is_ready() {
+                    worker.set_state(WorkerState::NotReady);
+                    deactivated_workers.push(worker.id.clone());
+                }
+            }
+        }
+
+        // In the case we deactivated any worker, we want to reschedule the instances linked to that
+        let mut instances_to_delete = Vec::new();
+        let mut instances = self.state.iter_mut();
+        {
+            for (id, workload) in instances {
+                for (instance_id, instance) in workload.instances.iter() {
+                    if let Some(worker_id) = &instance.worker_id {
+                        if deactivated_workers.contains(worker_id) {
+                            instances_to_delete.push((id.clone(), instance_id.clone()));
+                        }
+                    }
+                }
+            }
+        }
+
+        for (workload_id, instance_id) in &instances_to_delete {
+            if let Some(workload) = self.state.get_mut(workload_id) {
+                workload.instances.remove(instance_id);
+            }
+        }
     }
 
     fn process_instance_update(&mut self, metrics: InstanceMetric) -> Result<(), SchedulerError> {
