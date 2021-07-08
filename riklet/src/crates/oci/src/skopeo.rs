@@ -48,7 +48,7 @@ impl Skopeo {
 
         let timeout = config
             .timeout
-            .or(Some(Duration::from_millis(5000)))
+            .or_else(|| Some(Duration::from_millis(5000)))
             .unwrap();
 
         let images_directory = config
@@ -74,7 +74,7 @@ impl Skopeo {
         })
     }
 
-    fn get_pull_path(&self, directory: &String) -> String {
+    fn get_pull_path(&self, directory: &str) -> String {
         format!(
             "oci:{}/{}",
             self.images_directory.to_str().unwrap(),
@@ -82,13 +82,8 @@ impl Skopeo {
         )
     }
 
-    pub async fn copy(
-        &self,
-        src: &String,
-        uuid: &String,
-        opts: Option<&CopyArgs>,
-    ) -> Result<String> {
-        let mut args = vec![String::from("copy"), src.clone()];
+    pub async fn copy(&self, src: &str, uuid: &str, opts: Option<&CopyArgs>) -> Result<String> {
+        let mut args = vec![String::from("copy"), src.to_string()];
         Self::append_opts(&mut args, opts.map(|opts| opts as &dyn Args))?;
 
         let image_pull_path = self.get_pull_path(uuid);
@@ -97,7 +92,7 @@ impl Skopeo {
 
         self.exec(&args).await?;
 
-        let splitted = image_pull_path.split(":").collect::<Vec<&str>>();
+        let splitted = image_pull_path.split(':').collect::<Vec<&str>>();
         Ok(String::from(*splitted.get(1).unwrap()))
     }
 }
@@ -176,16 +171,13 @@ impl Executable for Skopeo {
         let stdout = String::from_utf8(result.stdout.clone()).unwrap();
         let stderr = String::from_utf8(result.stderr.clone()).unwrap();
 
-        if stderr != "" {
+        if !stderr.is_empty() {
             error!("Skopeo error : {}", stderr);
         }
 
         ensure!(
             result.status.success(),
-            SkopeoCommandFailedError {
-                stdout: stdout,
-                stderr: stderr
-            }
+            SkopeoCommandFailedError { stdout, stderr }
         );
 
         Ok(stdout)

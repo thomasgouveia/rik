@@ -71,7 +71,7 @@ impl CliConfiguration {
         match self.verbose {
             0 => "info",
             1 => "debug",
-            2 | _ => "trace",
+            _ => "trace",
         }
     }
 }
@@ -128,7 +128,7 @@ impl Configuration {
             Configuration::create(&path, &configuration)?;
         } else {
             configuration = Configuration::read(&path)?;
-            if opts.override_config.clone() {
+            if opts.override_config {
                 configuration.override_config(&opts);
             }
         };

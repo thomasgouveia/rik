@@ -6,8 +6,6 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use std::iter::FromIterator;
-
 pub mod console;
 pub mod container;
 
@@ -45,7 +43,7 @@ trait Executable: Args {
 
     fn concat_args(&self, args: &[String]) -> Result<Vec<String>> {
         let mut combined = self.args()?;
-        combined.append(&mut Vec::from_iter(args.iter().cloned().map(String::from)));
+        combined.append(&mut args.iter().cloned().map(String::from).collect());
         Ok(combined)
     }
 

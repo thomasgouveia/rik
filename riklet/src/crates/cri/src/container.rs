@@ -40,7 +40,7 @@ impl Runc {
 
         let timeout = config
             .timeout
-            .or(Some(Duration::from_millis(5000)))
+            .or_else(|| Some(Duration::from_millis(5000)))
             .unwrap();
 
         debug!("Runc initialized.");
@@ -164,16 +164,13 @@ impl Executable for Runc {
         let stdout = String::from_utf8(result.stdout.clone()).unwrap();
         let stderr = String::from_utf8(result.stderr.clone()).unwrap();
 
-        if stderr != "" {
+        if !stderr.is_empty() {
             error!("Runc error : {}", stderr);
         }
 
         ensure!(
             result.status.success(),
-            RuncCommandFailedError {
-                stdout: stdout,
-                stderr: stderr
-            }
+            RuncCommandFailedError { stdout, stderr }
         );
 
         Ok(stdout)
@@ -282,11 +279,13 @@ impl Drop for Runc {
     }
 }
 
+/// these tests should be ignored because we can't run Runc container in CI pipeline.
+/// To run, use the following `cargo test --workspace --ignored`
 #[cfg(test)]
 mod tests {
     use uuid::Uuid;
 
-    use std::env::{temp_dir, var_os};
+    use std::env::temp_dir;
     use std::fs::{copy, create_dir_all};
     use std::path::PathBuf;
 
@@ -381,6 +380,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_it_run_a_container() {
         let (runc_path, runc_root) = setup_test_sequence();
 
@@ -441,6 +441,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_it_delete_a_container() {
         let (runc_path, runc_root) = setup_test_sequence();
 
@@ -466,6 +467,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_it_force_delete_a_container() {
         let (runc_path, runc_root) = setup_test_sequence();
 
@@ -487,6 +489,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_it_kill_a_container() {
         let (runc_path, runc_root) = setup_test_sequence();
 

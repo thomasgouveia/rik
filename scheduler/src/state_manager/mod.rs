@@ -54,14 +54,15 @@ impl StateManager {
         mut receiver: Receiver<StateManagerEvent>,
     ) -> Result<(), SchedulerError> {
         while let Some(message) = receiver.recv().await {
-            match message {
+            let _ = match message {
                 StateManagerEvent::Shutdown => {
                     info!("Shutting down StateManager");
                     return Ok(());
                 }
                 StateManagerEvent::Schedule(workload) => self.process_schedule_request(workload),
                 StateManagerEvent::InstanceUpdate(metrics) => {
-                    self.manager_channel
+                    let _ = self
+                        .manager_channel
                         .send(Event::InstanceMetric(
                             "scheduler".to_string(),
                             metrics.clone(),
@@ -226,7 +227,8 @@ impl StateManager {
                             &instance.id, &instance.status
                         );
 
-                        self.manager_channel
+                        let _ = self
+                            .manager_channel
                             .send(Event::Schedule(
                                 instance.worker_id.clone().unwrap(),
                                 InstanceScheduling {
@@ -237,7 +239,8 @@ impl StateManager {
                                 },
                             ))
                             .await;
-                        self.manager_channel
+                        let _ = self
+                            .manager_channel
                             .send(Event::InstanceMetric(
                                 "scheduler".to_string(),
                                 InstanceMetric {
@@ -255,7 +258,8 @@ impl StateManager {
 
         for (workload_id, mut instance) in scheduled.into_iter() {
             if let Some(worker_id) = self.get_eligible_worker() {
-                self.manager_channel
+                let _ = self
+                    .manager_channel
                     .send(Event::Schedule(
                         worker_id.clone(),
                         InstanceScheduling {
@@ -266,7 +270,8 @@ impl StateManager {
                         },
                     ))
                     .await;
-                self.manager_channel
+                let _ = self
+                    .manager_channel
                     .send(Event::InstanceMetric(
                         "scheduler".to_string(),
                         InstanceMetric {

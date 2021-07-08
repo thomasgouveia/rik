@@ -37,7 +37,7 @@ impl Umoci {
 
         let timeout = config
             .timeout
-            .or(Some(Duration::from_millis(5000)))
+            .or_else(|| Some(Duration::from_millis(5000)))
             .unwrap();
 
         let bundles_directory = config
@@ -57,11 +57,11 @@ impl Umoci {
         })
     }
 
-    fn get_bundle_path(&self, bundle_id: &String) -> String {
+    fn get_bundle_path(&self, bundle_id: &str) -> String {
         format!("{}/{}", self.bundles_directory.to_str().unwrap(), bundle_id)
     }
 
-    pub async fn unpack(&self, bundle_id: &String, opts: Option<&UnpackArgs>) -> Result<String> {
+    pub async fn unpack(&self, bundle_id: &str, opts: Option<&UnpackArgs>) -> Result<String> {
         let mut args = vec![String::from("unpack")];
         Self::append_opts(&mut args, opts.map(|opts| opts as &dyn Args))?;
         let bundle_path = self.get_bundle_path(bundle_id);
@@ -84,7 +84,7 @@ impl Args for Umoci {
 
         if let Some(log_level) = &self.log_level {
             args.push(String::from("--log"));
-            args.push(String::from(log_level.to_string()));
+            args.push(log_level.to_string());
         }
 
         Ok(args)
@@ -117,17 +117,14 @@ impl Executable for Umoci {
         let stdout = String::from_utf8(result.stdout.clone()).unwrap();
         let stderr = String::from_utf8(result.stderr.clone()).unwrap();
 
-        if stderr != "" {
+        if !stderr.is_empty() {
             if stderr.contains("config.json already exists") {
                 log::warn!("A config.json already exists for this image.");
             } else {
                 error!("Umoci error : {}", stderr);
                 ensure!(
                     result.status.success(),
-                    UmociCommandFailedError {
-                        stdout: stdout,
-                        stderr: stderr
-                    }
+                    UmociCommandFailedError { stdout, stderr }
                 );
             }
         }

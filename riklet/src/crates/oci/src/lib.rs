@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use log::error;
 use snafu::Snafu;
-use std::iter::FromIterator;
 
 pub mod image;
 pub mod image_manager;
@@ -50,7 +49,7 @@ trait Executable: Args {
 
     fn concat_args(&self, args: &[String]) -> Result<Vec<String>> {
         let mut combined = self.args()?;
-        combined.append(&mut Vec::from_iter(args.iter().cloned().map(String::from)));
+        combined.append(&mut args.iter().cloned().map(String::from).collect());
         Ok(combined)
     }
 
