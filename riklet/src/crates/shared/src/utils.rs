@@ -4,7 +4,7 @@ use rand::{thread_rng, Rng};
 use std::collections::hash_map::DefaultHasher;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use tar::Archive;
 
 /// Find a binary in the host PATH

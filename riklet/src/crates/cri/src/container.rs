@@ -367,10 +367,7 @@ mod tests {
     fn setup_test_sequence() -> (PathBuf, PathBuf) {
         let sequence_id = format!("{}", Uuid::new_v4());
         let mut sequence_path = temp_dir().join(&sequence_id);
-        let sequence_root =
-            temp_dir()
-                .join("runc")
-                .join(&sequence_id);
+        let sequence_root = temp_dir().join("runc").join(&sequence_id);
 
         create_dir_all(&sequence_root).expect("Unable to create runc root");
         create_dir_all(&sequence_path).expect("Unable to create the temporary folder");
