@@ -1,6 +1,7 @@
+.vscode/*
 .idea/
 target
-Cargo.lock
 .run
 **/.DS_Store
-target
+*.log
+.vagrant

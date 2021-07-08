@@ -5,6 +5,7 @@ use crate::traits::EventEmitter;
 use clap::crate_version;
 use cri::console::ConsoleSocket;
 use cri::container::{CreateArgs, DeleteArgs, Runc};
+use node_metrics::metrics_manager::MetricsManager;
 use oci::image_manager::ImageManager;
 use proto::common::{InstanceMetric, WorkerMetric, WorkerRegistration, WorkerStatus};
 use proto::worker::worker_client::WorkerClient;
@@ -14,7 +15,6 @@ use std::error::Error;
 use std::path::PathBuf;
 use std::time::Duration;
 use tonic::{transport::Channel, Request, Streaming};
-use node_metrics::metrics_manager::MetricsManager;
 
 #[derive(Debug)]
 pub struct Riklet {
