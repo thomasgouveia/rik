@@ -10,7 +10,6 @@ use proto::controller::WorkloadScheduling;
 use rusqlite::Connection;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
-use tonic;
 use uuid::Uuid;
 
 #[derive(Clone)]

@@ -91,7 +91,7 @@ impl Configuration {
 
     /// Create the configuration file and store the default config into it
     fn create(
-        path: &PathBuf,
+        path: &Path,
         configuration: &Configuration,
     ) -> Result<(), Box<dyn std::error::Error>> {
         info!("No configuration file found at {}. Creating a new configuration file with the default configuration.", path.display());
