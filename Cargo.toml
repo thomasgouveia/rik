@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "scheduler",
+    "riklet/src/crates/node_metrics",
+    "riklet"
+]

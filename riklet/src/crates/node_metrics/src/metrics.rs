@@ -1,44 +1,43 @@
 use serde::{Deserialize, Serialize};
-
+#[cfg(feature = "manager")]
 use sysinfo::{DiskExt, ProcessorExt, System, SystemExt};
 
 #[derive(Serialize, Deserialize, Debug)]
-struct CpuMetrics {
+pub struct CpuMetrics {
     /// number of CPU
-    total: u8,
+    pub total: u8,
     /// Pourcentage of total cpu usage
-    free: f32,
+    pub free: f32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct MemoryMetrics {
+pub struct MemoryMetrics {
     /// Total memory (bytes)
-    total: u64,
+    pub total: u64,
     /// Free memory (bytes)
-    free: u64,
+    pub free: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct DiskMetrics {
-    disk_name: String,
+pub struct DiskMetrics {
+    pub disk_name: String,
     /// Total disk (bytes)
-    total: u64,
+    pub total: u64,
     /// Free disk (bytes)
-    free: u64,
+    pub free: u64,
 }
 
+/// Struct of node metrics
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Metrics {
-    cpu: CpuMetrics,
-    memory: MemoryMetrics,
-    disks: Vec<DiskMetrics>,
+    pub cpu: CpuMetrics,
+    pub memory: MemoryMetrics,
+    pub disks: Vec<DiskMetrics>,
 }
 
 impl Metrics {
-    pub fn new() -> Metrics {
-        let mut sys = System::new_all();
-        sys.refresh_all();
-
+    #[cfg(feature = "manager")]
+    pub fn fetch(sys: &System) -> Metrics {
         // get cpu information
         let cpu_amount = sys.processors().len() as u8;
         let mut avg_cpu_usage = 0.0;
@@ -80,6 +79,10 @@ impl Metrics {
 
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(&self)
+    }
+
+    pub fn from_json(json: String) -> Result<Metrics, serde_json::Error> {
+        serde_json::from_str(&json)
     }
 
     pub fn log(&self) {
