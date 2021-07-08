@@ -32,3 +32,28 @@ pub struct Instance {
     pub workload_id: usize,
     pub status: String,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct InstanceStatus {
+    // pub workload_id: String,
+    pub status: String,
+}
+impl InstanceStatus {
+    pub fn new(status: usize) -> InstanceStatus {
+        let str_status = match status {
+            0 => "Unknown".to_string(),
+            1 => "Pending".to_string(),
+            2 => "Running".to_string(),
+            3 => "Failed".to_string(),
+            4 => "Terminated".to_string(),
+            5 => "Creating".to_string(),
+            6 => "Destroying".to_string(),
+            _ => "Creating".to_string(),
+        };
+
+        InstanceStatus {
+            // workload_id: workload_id,
+            status: str_status,
+        }
+    }
+}

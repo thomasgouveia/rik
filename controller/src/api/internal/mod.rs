@@ -1,3 +1,4 @@
+use crate::api::types::instance::InstanceStatus;
 use crate::api::{ApiChannel, CRUD};
 use crate::database::RikDataBase;
 use crate::database::RikRepository;
@@ -10,6 +11,7 @@ use rusqlite::Connection;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use tonic;
+use uuid::Uuid;
 
 #[derive(Clone)]
 struct RikControllerClient {
@@ -43,29 +45,38 @@ impl RikControllerClient {
     ) -> Result<(), tonic::Status> {
         let connection: Connection = database.open().unwrap();
         let request = tonic::Request::new(());
-        println!("Received status update request");
         let mut stream = self.client.get_status_updates(request).await?.into_inner();
         while let Some(status) = stream.message().await? {
-            println!("Instance Status {:?}", status);
+            println!("Received status update request {:?}", status);
             if let Some(status) = status.status {
-                println!("{:?}", status);
                 let instance_id = match status.clone() {
                     Status::Instance(instance_metric) => Some(instance_metric.instance_id),
                     Status::Worker(_worker_metric) => None,
                 };
                 let instance_status = match status {
-                    Status::Instance(instance_metric) => Some(instance_metric.status),
+                    Status::Instance(instance_metric) => Some(instance_metric),
                     Status::Worker(_worker_metric) => None,
                 };
                 if let (Some(instance_id), Some(instance_status)) = (instance_id, instance_status) {
+                    let id: String;
+                    if let Ok(previous_instance) = RikRepository::check_duplicate_name(
+                        &connection,
+                        &format!("/instance/default/{}", instance_id),
+                    ) {
+                        id = previous_instance.id
+                    } else {
+                        id = Uuid::new_v4().to_string();
+                    }
+                    let instance_status = InstanceStatus::new(instance_status.status as usize);
+
                     let name = format!("/instance/default/{}", instance_id);
-                    let value = serde_json::from_str(&instance_status.to_string()).unwrap();
+                    let value = serde_json::to_string(&instance_status).unwrap();
                     match RikRepository::upsert(
                         &connection,
-                        &instance_id,
+                        &id,
                         &name,
                         &value,
-                        &"instance".to_string(),
+                        &"/instance".to_string(),
                     ) {
                         Ok(value) => value,
                         Err(e) => panic!("{:?}", e),

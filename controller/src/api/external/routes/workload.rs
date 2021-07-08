@@ -48,7 +48,10 @@ pub fn create(
     let mut content = String::new();
     req.as_reader().read_to_string(&mut content).unwrap();
 
-    let workload: WorkloadDefinition = serde_json::from_str(&content)?;
+    let mut workload: WorkloadDefinition = serde_json::from_str(&content)?;
+    if workload.replicas.is_none() {
+        workload.replicas = Some(1);
+    }
     let namespace = "default";
     let name = format!(
         "/workload/{}/{}/{}",
