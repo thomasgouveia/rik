@@ -4,7 +4,7 @@ use rand::{thread_rng, Rng};
 use std::collections::hash_map::DefaultHasher;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use tar::Archive;
 
 /// Find a binary in the host PATH
@@ -31,7 +31,7 @@ pub fn generate_hash<T: Hash>(t: &T) -> u64 {
 }
 
 /// Unpack a .tar.gz archive into the provided location
-pub fn unpack(archive: &str, dest: &PathBuf) -> std::io::Result<()> {
+pub fn unpack(archive: &str, dest: &Path) -> std::io::Result<()> {
     let tar_gz =
         File::open(archive).expect(&format!("Unable to unzip the archive {}", archive)[..]);
     let tar = GzDecoder::new(tar_gz);
@@ -40,7 +40,7 @@ pub fn unpack(archive: &str, dest: &PathBuf) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn create_file_with_parent_folders(path: &PathBuf) -> std::io::Result<File> {
+pub fn create_file_with_parent_folders(path: &Path) -> std::io::Result<File> {
     let parent = path.parent().unwrap();
     if !parent.exists() {
         std::fs::create_dir_all(parent)?;

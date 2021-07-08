@@ -368,7 +368,7 @@ mod tests {
         let sequence_id = format!("{}", Uuid::new_v4());
         let mut sequence_path = temp_dir().join(&sequence_id);
         let sequence_root =
-            PathBuf::from(var_os("XDG_RUNTIME_DIR").expect("Expected temporary path"))
+            temp_dir()
                 .join("runc")
                 .join(&sequence_id);
 
