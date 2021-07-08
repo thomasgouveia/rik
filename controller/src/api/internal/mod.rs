@@ -3,13 +3,13 @@ use crate::database::RikDataBase;
 use crate::database::RikRepository;
 use crate::logger::{LogType, LoggingChannel};
 use dotenv::dotenv;
+use proto::common::worker_status::Status;
 use proto::controller::controller_client::ControllerClient;
 use proto::controller::WorkloadScheduling;
 use rusqlite::Connection;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use tonic;
-use uuid::Uuid;
 
 #[derive(Clone)]
 struct RikControllerClient {
@@ -43,12 +43,35 @@ impl RikControllerClient {
     ) -> Result<(), tonic::Status> {
         let connection: Connection = database.open().unwrap();
         let request = tonic::Request::new(());
-
+        println!("Received status update request");
         let mut stream = self.client.get_status_updates(request).await?.into_inner();
-        // TODO
         while let Some(status) = stream.message().await? {
             println!("Instance Status {:?}", status);
-            RikRepository::update(&connection, &Uuid::new_v4().to_string()).unwrap();
+            if let Some(status) = status.status {
+                println!("{:?}", status);
+                let instance_id = match status.clone() {
+                    Status::Instance(instance_metric) => Some(instance_metric.instance_id),
+                    Status::Worker(_worker_metric) => None,
+                };
+                let instance_status = match status {
+                    Status::Instance(instance_metric) => Some(instance_metric.status),
+                    Status::Worker(_worker_metric) => None,
+                };
+                if let (Some(instance_id), Some(instance_status)) = (instance_id, instance_status) {
+                    let name = format!("/instance/default/{}", instance_id);
+                    let value = serde_json::from_str(&instance_status.to_string()).unwrap();
+                    match RikRepository::upsert(
+                        &connection,
+                        &instance_id,
+                        &name,
+                        &value,
+                        &"instance".to_string(),
+                    ) {
+                        Ok(value) => value,
+                        Err(e) => panic!("{:?}", e),
+                    };
+                }
+            }
         }
         Ok(())
     }
@@ -122,8 +145,8 @@ impl Server {
                     self.logger
                         .send(LoggingChannel {
                             message: format!(
-                                "Ctrl to scheduler delete instance: {:?}",
-                                notification.instance_id
+                                "Ctrl to scheduler delete workload: {:?}",
+                                notification.workload_id
                             ),
                             log_type: LogType::Log,
                         })

@@ -139,5 +139,3 @@ pub fn delete(
         )
     }
 }
-
-

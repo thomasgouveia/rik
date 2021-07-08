@@ -111,12 +111,33 @@ impl RikRepository {
         Ok(elements)
     }
 
-    pub fn update(connection: &Connection, id: &String) -> Result<()> {
+    pub fn update(connection: &Connection, id: &String, value: &String) -> Result<()> {
         connection.execute(
             "UPDATE cluster SET value=(?1) WHERE id = (?2)",
-            params!["Status Updated", id],
+            params![value, id],
         )?;
         Ok(())
+    }
+
+    pub fn upsert(
+        connection: &Connection,
+        id: &String,
+        name: &String,
+        value: &String,
+        element_type: &String,
+    ) -> Result<String> {
+        if let Ok(_) = RikRepository::find_one(connection, id, element_type) {
+            RikRepository::update(connection, id, value)?;
+            Ok(id.to_string())
+        } else {
+            connection
+                .execute(
+                    "INSERT INTO cluster (id, name, value) VALUES (?1, ?2, ?3)",
+                    params![id, name, value],
+                )
+                .unwrap();
+            Ok(id.to_string())
+        }
     }
 }
 
@@ -125,6 +146,7 @@ mod test {
     use crate::database::{RikDataBase, RikRepository};
     use crate::tests::fixtures::db_connection;
     use rstest::rstest;
+    use uuid::Uuid;
 
     #[rstest]
     fn test_insert_and_find_ok(db_connection: std::sync::Arc<RikDataBase>) {
@@ -194,5 +216,48 @@ mod test {
         assert_eq!(duplicate.id, inserted_id);
         assert_eq!(duplicate.name, name);
         assert_eq!(duplicate.value, serde_json::json!({"data": "test"}));
+    }
+
+    #[rstest]
+    fn test_upsert_ok(db_connection: std::sync::Arc<RikDataBase>) {
+        let connection = db_connection.open().unwrap();
+        connection.execute("DELETE FROM cluster", []).unwrap();
+        let id = Uuid::new_v4().to_string();
+        let name = "/workload/pods/default/test-workload".to_string();
+        let mut value = "{\"data\": \"test\"}".to_string();
+        let inserted_id = match RikRepository::upsert(
+            &connection,
+            &id,
+            &name,
+            &value,
+            &"/workload".to_string(),
+        ) {
+            Ok(v) => v,
+            Err(e) => panic!("Test failed on first insert : {:?}", e),
+        };
+        let element = match RikRepository::find_one(&connection, &inserted_id, "/workload") {
+            Ok(v) => v,
+            Err(_) => panic!("Test failed can't find inserted value"),
+        };
+        assert_eq!(element.id, inserted_id);
+        assert_eq!(element.name, name);
+        assert_eq!(element.value, serde_json::json!({"data": "test"}));
+
+        value = "{\"data\": \"test_updated\"}".to_string();
+        match RikRepository::upsert(&connection, &id, &name, &value, &"/workload".to_string()) {
+            Ok(v) => v,
+            Err(e) => panic!("Test failed on first insert : {:?}", e),
+        };
+        let updated_element = match RikRepository::find_one(&connection, &inserted_id, "/workload")
+        {
+            Ok(v) => v,
+            Err(_) => panic!("Test failed can't find inserted value"),
+        };
+        assert_eq!(updated_element.id, inserted_id);
+        assert_eq!(updated_element.name, name);
+        assert_eq!(
+            updated_element.value,
+            serde_json::json!({"data": "test_updated"})
+        );
     }
 }
