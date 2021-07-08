@@ -288,7 +288,7 @@ mod tests {
 
     use std::env::{temp_dir, var_os};
     use std::fs::{copy, create_dir_all};
-    use std::path::{PathBuf};
+    use std::path::PathBuf;
 
     use crate::console::ConsoleSocket;
     use crate::container::{CreateArgs, DeleteArgs, Runc, RuncConfiguration};
