@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use shared::utils::{create_directory_if_not_exists, create_file_with_parent_folders};
 use snafu::Snafu;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::constants::DEFAULT_COMMAND_TIMEOUT;
@@ -108,7 +108,7 @@ impl Configuration {
     }
 
     /// Read the configuration file from the path provided.
-    fn read(path: &PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
+    fn read(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let contents = std::fs::read(path).map_err(|source| Error::LoadError { source })?;
 
         Ok(toml::from_slice(&contents).map_err(|source| Error::ParseError { source })?)
