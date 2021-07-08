@@ -132,6 +132,10 @@ impl Controller {
             e
         })
     }
+
+    pub fn is_channel_closed(&self) -> bool {
+        self.channel.is_closed()
+    }
 }
 
 #[derive(Debug)]

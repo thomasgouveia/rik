@@ -127,11 +127,15 @@ impl Manager {
                     }
                 }
                 Event::Subscribe(channel, addr) => {
-                    if let Some(_) = &self.controller {
-                        error!("Can only have one controller at a time");
+                    if let Some(controller) = &self.controller {
+                        if controller.is_channel_closed() {
+                            self.controller = Some(Controller::new(channel.clone(), addr));
+                        } else {
+                            error!("Can only have one controller at a time");
+                        }
                     } else {
-                        self.controller = Some(Controller::new(channel.clone(), addr));
                         info!("A controller is now connected");
+                        self.controller = Some(Controller::new(channel.clone(), addr));
                     }
                 }
                 Event::WorkerMetric(identifier, data) => {
@@ -152,6 +156,7 @@ impl Manager {
                     }
                 }
                 Event::InstanceMetric(identifier, metrics) => {
+                    debug!("MRTIC is {:#?}", Some(Status::Instance(metrics.clone())));
                     if let Some(controller) = &self.controller {
                         if let Err(e) = controller
                             .send(Ok(WorkerStatus {
