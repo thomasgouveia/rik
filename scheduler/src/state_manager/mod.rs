@@ -1,12 +1,12 @@
 mod lib;
 
-use crate::state_manager::lib::get_random_hash;
+use crate::state_manager::lib::{get_random_hash, resource_status_to_int, int_to_resource_status};
 use definition::workload::WorkloadDefinition;
 use log::{debug, error, info};
-use proto::common::{InstanceMetric, WorkerMetric, WorkloadRequestKind, ResourceStatus};
+use proto::common::{InstanceMetric, ResourceStatus, WorkerMetric, WorkloadRequestKind};
 use proto::worker::InstanceScheduling;
 use rand::seq::IteratorRandom;
-use rik_scheduler::{Event, SchedulerError, Worker, WorkloadChannelType, WorkloadRequest};
+use rik_scheduler::{Event, SchedulerError, Worker, WorkloadChannelType, WorkloadRequest, WorkerState};
 use std::collections::HashMap;
 use std::fmt;
 use std::slice::Iter;
@@ -19,7 +19,7 @@ pub enum StateManagerEvent {
     Schedule(WorkloadRequest),
     Shutdown,
     InstanceUpdate(InstanceMetric),
-    WorkerUpdate(WorkerMetric),
+    WorkerUpdate(String, WorkerMetric),
 }
 
 impl fmt::Display for StateManagerEvent {
@@ -71,7 +71,7 @@ impl StateManager {
                 }
                 StateManagerEvent::Schedule(workload) => self.process_schedule_request(workload),
                 StateManagerEvent::InstanceUpdate(metrics) => self.process_instance_update(metrics),
-                StateManagerEvent::WorkerUpdate(metrics) => self.process_metric_update(metrics),
+                StateManagerEvent::WorkerUpdate(identifier, metrics) => self.process_metric_update(identifier, metrics),
             };
             self.update_state().await;
         }
@@ -89,12 +89,39 @@ impl StateManager {
     }
 
     fn process_instance_update(&mut self, metrics: InstanceMetric) -> Result<(), SchedulerError> {
-        debug!("Received an instance update {}", metrics);
+        debug!("[process_instance_update] Instance {} and received {} status", metrics.instance_id, &metrics.status);
+        // let workload = self
+        //     .state
+        //     .iter_mut()
+        //     .find(|(_, workload)| workload.instances.contains_key(&metrics.instance_id));
+        //
+        // if let Some((_, workload)) = workload {
+        //     let instance = workload.instances.get_mut(&metrics.instance_id).unwrap();
+        //     //instance.status = int_to_resource_status(metrics.status);
+        //     info!("Instance {} updated status to {}", instance.id, instance.status);
+        // } else {
+        //     error!("Could not process instance {} update, as it does not exist", metrics.instance_id);
+        // }
+
+
         Ok(())
     }
 
-    fn process_metric_update(&mut self, metrics: WorkerMetric) -> Result<(), SchedulerError> {
-        unimplemented!("Metrics update isn't implemented for now");
+    fn process_metric_update(&mut self, identifier: String, metrics: WorkerMetric) -> Result<(), SchedulerError> {
+        error!(
+            "Metrics update is not implemented for now but received {:#?}",
+            metrics
+        );
+
+        let mut lock = self.workers.lock().unwrap();
+        if let Some(worker) = lock.iter_mut().find(|worker| worker.id.eq(&identifier)) {
+            if int_to_resource_status(metrics.status) == ResourceStatus::Running {
+                worker.set_state(WorkerState::Ready);
+            }
+        } else {
+            error!("Received metrics for worker {} but could not find registration associated", identifier);
+        }
+
         Ok(())
     }
 
@@ -148,7 +175,10 @@ impl StateManager {
                         .find(|(id, instance)| !removed.contains(id))
                     {
                         instance.status = ResourceStatus::Destroying;
-                        debug!("WorkloadInstance {} went to {:#?}", &instance.id, &instance.status);
+                        debug!(
+                            "WorkloadInstance {} went to {:#?}",
+                            &instance.id, &instance.status
+                        );
 
                         self.manager_channel
                             .send(Event::Schedule(
@@ -166,7 +196,10 @@ impl StateManager {
                                 "scheduler".to_string(),
                                 InstanceMetric {
                                     status: ResourceStatus::Destroying.into(),
-                                    metrics: format!("\"workload_id\": \"{}\"", instance.id.clone()),
+                                    metrics: format!(
+                                        "\"workload_id\": \"{}\"",
+                                        instance.worker_id.clone().unwrap()
+                                    ),
                                     instance_id: instance.id.clone(),
                                 },
                             ))
@@ -195,7 +228,7 @@ impl StateManager {
                         "scheduler".to_string(),
                         InstanceMetric {
                             status: ResourceStatus::Pending.into(),
-                            metrics: format!("\"workload_id\": \"{}\"", instance.id.clone()),
+                            metrics: format!("\"workload_id\": \"{}\"", worker_id.clone()),
                             instance_id: instance.id.clone(),
                         },
                     ))

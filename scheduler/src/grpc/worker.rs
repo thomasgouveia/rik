@@ -52,11 +52,13 @@ impl WorkerClient for GRPCService {
             let data = data.status.unwrap();
             match data {
                 Status::Worker(metrics) => {
-                    self.send(Event::WorkerMetricsUpdate(identifier, metrics)).await?
-                },
+                    self.send(Event::WorkerMetricsUpdate(identifier, metrics))
+                        .await?
+                }
                 Status::Instance(metrics) => {
-                    self.send(Event::InstanceMetricsUpdate(identifier, metrics)).await?
-                },
+                    self.send(Event::InstanceMetricsUpdate(identifier, metrics))
+                        .await?
+                }
                 _ => unimplemented!("This kind of metrics isn't implemented"),
             };
         }

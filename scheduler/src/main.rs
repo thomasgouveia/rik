@@ -154,7 +154,7 @@ impl Manager {
                             identifier
                         );
                     }
-                },
+                }
                 Event::InstanceMetric(identifier, metrics) => {
                     if let Some(controller) = &self.controller {
                         if let Err(e) = controller
@@ -167,10 +167,17 @@ impl Manager {
                             error!("Failed to send InstanceMetric to controller, reason: {}", e);
                         }
                     }
-                },
-                Event::InstanceMetricsUpdate(identifier, metrics) => {
-
-                },
+                }
+                Event::InstanceMetricsUpdate(_, metrics) => {
+                    self.state_manager
+                        .send(StateManagerEvent::InstanceUpdate(metrics))
+                        .await;
+                }
+                Event::WorkerMetricsUpdate(identifier, metrics) => {
+                    self.state_manager
+                        .send(StateManagerEvent::WorkerUpdate(identifier, metrics))
+                        .await;
+                }
                 _ => unimplemented!("You think I'm not implemented ? Hold my beer"),
             }
         }
