@@ -2,10 +2,10 @@ use crate::*;
 use serde::{Deserialize, Serialize};
 use shared::utils::find_binary;
 use snafu::ensure;
+use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::process::Command;
-use std::path::Path;
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct RuncConfiguration {
