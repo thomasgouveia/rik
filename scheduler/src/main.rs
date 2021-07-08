@@ -11,8 +11,8 @@ use proto::common::worker_status::Status;
 use proto::common::WorkerStatus;
 use proto::controller::controller_server::ControllerServer;
 use proto::worker::worker_server::WorkerServer;
-use rik_scheduler::{Controller, SchedulerError, Worker, WorkerRegisterChannelType};
 use rik_scheduler::Event;
+use rik_scheduler::{Controller, SchedulerError, Worker, WorkerRegisterChannelType};
 use std::default::Default;
 use std::net::{SocketAddr, SocketAddrV4};
 use std::sync::{Arc, Mutex};
@@ -164,17 +164,25 @@ impl Manager {
                     }
                 }
                 Event::InstanceMetricsUpdate(_, metrics) => {
-                    if let Err(_) = self.state_manager
+                    if let Err(_) = self
+                        .state_manager
                         .send(StateManagerEvent::InstanceUpdate(metrics))
-                        .await {
-                        error!("StateManager is in failed state, cannot forward InstanceMetricsUpdate");
+                        .await
+                    {
+                        error!(
+                            "StateManager is in failed state, cannot forward InstanceMetricsUpdate"
+                        );
                     }
                 }
                 Event::WorkerMetricsUpdate(identifier, metrics) => {
-                    if let Err(_) = self.state_manager
+                    if let Err(_) = self
+                        .state_manager
                         .send(StateManagerEvent::WorkerUpdate(identifier, metrics))
-                        .await {
-                        error!("StateManager is in failed state, cannot forward WorkerMetricsUpdate");
+                        .await
+                    {
+                        error!(
+                            "StateManager is in failed state, cannot forward WorkerMetricsUpdate"
+                        );
                     }
                 }
             }
