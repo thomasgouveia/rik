@@ -4,6 +4,7 @@ use crate::state_manager::lib::get_random_hash;
 use definition::workload::WorkloadDefinition;
 use log::{debug, error, info};
 use proto::common::{InstanceMetric, ResourceStatus, WorkloadRequestKind};
+use proto::worker::InstanceScheduling;
 use rand::seq::IteratorRandom;
 use rik_scheduler::{Event, SchedulerError, Worker, WorkloadChannelType, WorkloadRequest};
 use std::collections::HashMap;
@@ -91,8 +92,10 @@ impl StateManager {
 
         let mut scheduled: Vec<(String, WorkloadInstance)> = Vec::new();
 
+        // Well I'm sorry for this piece of code which isn't a art piece! Had some trouble with
+        // ownership
         for (id, workload) in self.state.iter_mut() {
-            let length_diff = workload.replicas - workload.instances.len() as u16;
+            let length_diff: i32 = (workload.replicas as i32 - (workload.instances.len() as i32));
 
             if length_diff > 0 {
                 debug!(
@@ -105,21 +108,70 @@ impl StateManager {
                     while workload.instances.contains_key(id) {
                         workload_id = get_random_hash(4).to_ascii_lowercase();
                     }
-                    scheduled.push((id.clone(), WorkloadInstance::new(workload_id.clone(), ResourceStatus::Pending, 1)));
+                    workload_id = format!("{}-{}", workload.definition.name.clone(), workload_id);
+
+                    scheduled.push((
+                        id.clone(),
+                        WorkloadInstance::new(workload_id.clone(), ResourceStatus::Pending, None, workload.definition.clone()),
+                    ));
+                }
+            } else if length_diff < 0 {
+                debug!(
+                    "Divergence detected on {}, divergence length: {}",
+                    workload.id, length_diff
+                );
+                // As length_diff is negative, we need the opposite
+                for _ in 0..(-length_diff) {
+                    if let Some((id, instance)) = workload.instances.iter_mut().find(|_| true) {
+                        instance.status_update(ResourceStatus::Destroying);
+                        self.manager_channel
+                            .send(Event::Schedule(
+                                instance.worker_id.clone().unwrap(),
+                                InstanceScheduling {
+                                    instance_id: instance.id.clone(),
+                                    action: WorkloadRequestKind::Destroy as i32,
+                                    definition: serde_json::to_string(&instance.definition.clone()).unwrap(),
+                                },
+                            ))
+                            .await;
+                    }
                 }
             }
         }
 
-        for (workload_id, instance) in scheduled.into_iter() {
+        for (workload_id, mut instance) in scheduled.into_iter() {
             if let Some(worker_id) = self.get_eligible_worker() {
                 self.manager_channel
-                    .send(Event::InstanceMetric("scheduler".to_string(), InstanceMetric {
-                        status: ResourceStatus::Pending as i32,
-                        metrics: format!("\"workload_id\": \"{}\"", worker_id),
-                        instance_id: instance.id.clone(),
-                    }))
+                    .send(Event::Schedule(
+                        worker_id.clone(),
+                        InstanceScheduling {
+                            instance_id: instance.id.clone(),
+                            action: WorkloadRequestKind::Create as i32,
+                            definition: serde_json::to_string(&instance.definition.clone()).unwrap(),
+                        },
+                    ))
                     .await;
-                self.state.get_mut(&workload_id).unwrap().instances.insert(instance.id.clone(), instance);
+                self.manager_channel
+                    .send(Event::InstanceMetric(
+                        "scheduler".to_string(),
+                        InstanceMetric {
+                            status: ResourceStatus::Pending as i32,
+                            metrics: format!("\"workload_id\": \"{}\"", instance.id.clone()),
+                            instance_id: instance.id.clone(),
+                        },
+                    ))
+                    .await;
+                let state = self.state
+                    .get_mut(&workload_id)
+                    .unwrap();
+                {
+
+                    instance.set_worker(Some(worker_id));
+                    state
+                        .instances
+                        .insert(instance.id.clone(), instance);
+
+                }
             } else {
                 error!("Trying to schedule but cannot find any eligible worker");
             }
@@ -202,7 +254,17 @@ impl StateManager {
     }
 
     fn action_destroy_workload(&mut self, request: WorkloadRequest) -> Result<(), SchedulerError> {
-        let mut workload = self.state.get_mut(&request.workload_id).unwrap();
+        let mut workload = self.state.get_mut(&request.workload_id);
+
+        if workload.is_none() {
+            error!(
+                "Requested workload {} hasn't any instance available",
+                request.workload_id
+            );
+            return Err(SchedulerError::WorkloadDontExists(request.workload_id));
+        }
+
+        let mut workload = workload.unwrap();
 
         if workload.status == ResourceStatus::Destroying {
             return Ok(());
@@ -247,27 +309,40 @@ pub struct Workload {
     id: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WorkloadInstance {
     /// Part of the instance id that define the instance
     id: String,
     /// Current status of this instance
     status: ResourceStatus,
     /// Must be filled, the current id of the worker
-    worker_id: u8,
+    worker_id: Option<String>,
+    /// Current definition for this workload
+    definition: WorkloadDefinition,
 }
 
 impl WorkloadInstance {
-    pub fn new(id: String, status: ResourceStatus, worker_id: u8) -> WorkloadInstance {
+    pub fn new(
+        id: String,
+        status: ResourceStatus,
+        worker_id: Option<String>,
+        definition: WorkloadDefinition,
+    ) -> WorkloadInstance {
         WorkloadInstance {
             id,
             status,
             worker_id,
+            definition,
         }
     }
 
     pub fn status_update(&mut self, status: ResourceStatus) {
         debug!("WorkloadInstance {} went to {:#?}", self.id, self.status);
         self.status = status;
+    }
+
+    pub fn set_worker(&mut self, worker: Option<String>) {
+        debug!("WorkloadInstance {} was assigned to worker {}", self.id, worker.clone().unwrap_or("None".to_string()));
+        self.worker_id = worker;
     }
 }
