@@ -1,4 +1,5 @@
-.run
-.idea
+.vscode/*
+.idea/
 target
-
+.run
+**/.DS_Store
