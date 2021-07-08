@@ -1,23 +1,24 @@
-use std::path::PathBuf;
-use std::hash::{Hash, Hasher};
+use flate2::read::GzDecoder;
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use std::collections::hash_map::DefaultHasher;
 use std::fs::File;
-use flate2::read::GzDecoder;
+use std::hash::{Hash, Hasher};
+use std::path::PathBuf;
 use tar::Archive;
-use rand::{thread_rng, Rng};
-use rand::distributions::Alphanumeric;
 
 /// Find a binary in the host PATH
 pub fn find_binary(binary: &str) -> Option<PathBuf> {
     std::env::var_os("PATH").and_then(|paths| {
-        std::env::split_paths(&paths).filter_map(|dir| {
-            let full_path = dir.join(binary);
-            if full_path.is_file() {
-                Some(full_path)
-            } else {
-                None
-            }
-        })
+        std::env::split_paths(&paths)
+            .filter_map(|dir| {
+                let full_path = dir.join(binary);
+                if full_path.is_file() {
+                    Some(full_path)
+                } else {
+                    None
+                }
+            })
             .next()
     })
 }
@@ -31,8 +32,8 @@ pub fn generate_hash<T: Hash>(t: &T) -> u64 {
 
 /// Unpack a .tar.gz archive into the provided location
 pub fn unpack(archive: &str, dest: &PathBuf) -> std::io::Result<()> {
-    let tar_gz = File::open(archive)
-        .expect(&format!("Unable to unzip the archive {}", archive)[..]);
+    let tar_gz =
+        File::open(archive).expect(&format!("Unable to unzip the archive {}", archive)[..]);
     let tar = GzDecoder::new(tar_gz);
     let mut archive = Archive::new(tar);
     archive.unpack(dest).unwrap();

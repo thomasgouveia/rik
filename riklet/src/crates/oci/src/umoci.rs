@@ -1,12 +1,12 @@
-use std::path::PathBuf;
-use shared::utils::find_binary;
-use snafu::{OptionExt, ResultExt, ensure};
-use std::time::Duration;
-use log::debug;
 use crate::*;
-use tokio::process::Command;
+use log::debug;
+use serde::{Deserialize, Serialize};
+use shared::utils::find_binary;
+use snafu::{ensure, OptionExt, ResultExt};
+use std::path::PathBuf;
 use std::process::Stdio;
-use serde::{Serialize, Deserialize};
+use std::time::Duration;
+use tokio::process::Command;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UmociConfiguration {
@@ -24,11 +24,10 @@ pub struct Umoci {
     timeout: Duration,
     bundles_directory: PathBuf,
     verbose: bool,
-    log_level: Option<String>
+    log_level: Option<String>,
 }
 
 impl Umoci {
-
     /// Create an Umoci instance to interact with the binary
     pub fn new(config: UmociConfiguration) -> Result<Self> {
         let command = config
@@ -36,7 +35,10 @@ impl Umoci {
             .or_else(|| find_binary("umoci"))
             .context(UmociNotFoundError {})?;
 
-        let timeout = config.timeout.or(Some(Duration::from_millis(5000))).unwrap();
+        let timeout = config
+            .timeout
+            .or(Some(Duration::from_millis(5000)))
+            .unwrap();
 
         let bundles_directory = config
             .bundles_directory
@@ -56,11 +58,7 @@ impl Umoci {
     }
 
     fn get_bundle_path(&self, bundle_id: &String) -> String {
-        format!(
-            "{}/{}",
-            self.bundles_directory.to_str().unwrap(),
-            bundle_id
-        )
+        format!("{}/{}", self.bundles_directory.to_str().unwrap(), bundle_id)
     }
 
     pub async fn unpack(&self, bundle_id: &String, opts: Option<&UnpackArgs>) -> Result<String> {
@@ -105,7 +103,11 @@ impl Executable for Umoci {
             .spawn()
             .context(ProcessSpawnError {})?;
 
-        debug!("{} {}", self.command.to_str().unwrap(), &args.clone().join(" "));
+        debug!(
+            "{} {}",
+            self.command.to_str().unwrap(),
+            &args.clone().join(" ")
+        );
 
         let result = tokio::time::timeout(self.timeout, process.wait_with_output())
             .await
@@ -139,7 +141,7 @@ pub struct UnpackArgs {
     pub uid_map: Option<String>,
     pub gid_map: Option<String>,
     pub rootless: bool,
-    pub image: PathBuf
+    pub image: PathBuf,
 }
 
 impl Args for UnpackArgs {

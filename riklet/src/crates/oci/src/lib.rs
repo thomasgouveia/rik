@@ -1,13 +1,12 @@
-use log::{error};
-use snafu::Snafu;
 use async_trait::async_trait;
+use log::error;
+use snafu::Snafu;
 use std::iter::FromIterator;
 
-
+pub mod image;
 pub mod image_manager;
 pub mod skopeo;
 pub mod umoci;
-pub mod image;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -26,7 +25,11 @@ pub enum Error {
     SkopeoCommandTimeoutError { source: tokio::time::error::Elapsed },
     #[snafu(display("Umoci command failed, stdout: \"{}\", stderr: \"{}\"", stdout, stderr))]
     UmociCommandFailedError { stdout: String, stderr: String },
-    #[snafu(display("Skopeo command failed, stdout: \"{}\", stderr: \"{}\"", stdout, stderr))]
+    #[snafu(display(
+        "Skopeo command failed, stdout: \"{}\", stderr: \"{}\"",
+        stdout,
+        stderr
+    ))]
     SkopeoCommandFailedError { stdout: String, stderr: String },
     #[snafu(display("Umoci command error: {}", source))]
     UmociCommandError { source: std::io::Error },
@@ -51,7 +54,10 @@ trait Executable: Args {
         Ok(combined)
     }
 
-    fn append_opts(args: &mut Vec<String>, opts: Option<&dyn Args>) -> Result<()> where Self: Sized {
+    fn append_opts(args: &mut Vec<String>, opts: Option<&dyn Args>) -> Result<()>
+    where
+        Self: Sized,
+    {
         if let Some(opts) = opts {
             args.append(&mut opts.args()?);
         }

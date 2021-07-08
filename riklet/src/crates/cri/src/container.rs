@@ -1,10 +1,10 @@
 use crate::*;
+use serde::{Deserialize, Serialize};
 use shared::utils::find_binary;
+use snafu::ensure;
+use std::process::Stdio;
 use std::time::Duration;
 use tokio::process::Command;
-use std::process::Stdio;
-use snafu::ensure;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct RuncConfiguration {
@@ -38,7 +38,10 @@ impl Runc {
             .or_else(|| find_binary("runc"))
             .context(RuncNotFoundError {})?;
 
-        let timeout = config.timeout.or(Some(Duration::from_millis(5000))).unwrap();
+        let timeout = config
+            .timeout
+            .or(Some(Duration::from_millis(5000)))
+            .unwrap();
 
         debug!("Runc initialized.");
 
@@ -47,7 +50,7 @@ impl Runc {
             timeout,
             root: config.root,
             debug: config.debug,
-            rootless: config.rootless
+            rootless: config.rootless,
         })
     }
 
@@ -57,13 +60,11 @@ impl Runc {
         let mut output = self.exec(&args).await?;
         output = output.trim().to_string();
 
-        Ok(
-            if output == "null" {
-                Vec::new()
-            } else {
-                serde_json::from_str(&output).unwrap()
-            }
-        )
+        Ok(if output == "null" {
+            Vec::new()
+        } else {
+            serde_json::from_str(&output).unwrap()
+        })
     }
 
     /// Send the specified signal to all processes inside the container.
@@ -90,7 +91,7 @@ impl Runc {
         args.push(String::from("--bundle"));
         args.push(bundle);
         args.push(String::from(id));
-        self.exec(&args).await.map(|_|())
+        self.exec(&args).await.map(|_| ())
     }
 
     /// Get the state of a container
@@ -105,7 +106,7 @@ impl Runc {
         let mut args = vec![String::from("delete")];
         Self::append_opts(&mut args, opts.map(|opts| opts as &dyn Args))?;
         args.push(String::from(id));
-        self.exec(&args).await.map(|_|())
+        self.exec(&args).await.map(|_| ())
     }
 }
 
@@ -116,12 +117,12 @@ impl Args for Runc {
 
         if let Some(root) = self.root.clone() {
             args.push(String::from("--root"));
-            args.push(root
-                .canonicalize()
-                .context(InvalidPathError {})?
-                .to_string_lossy()
-                .parse()
-                .unwrap()
+            args.push(
+                root.canonicalize()
+                    .context(InvalidPathError {})?
+                    .to_string_lossy()
+                    .parse()
+                    .unwrap(),
             )
         }
 
@@ -139,7 +140,6 @@ impl Args for Runc {
 
 #[async_trait]
 impl Executable for Runc {
-
     async fn exec(&self, args: &[String]) -> Result<String> {
         let args = self.concat_args(args)?;
         let process = Command::new(&self.command)
@@ -150,7 +150,11 @@ impl Executable for Runc {
             .spawn()
             .context(ProcessSpawnError {})?;
 
-        debug!("{} {}", self.command.to_str().unwrap(), &args.clone().join(" "));
+        debug!(
+            "{} {}",
+            self.command.to_str().unwrap(),
+            &args.clone().join(" ")
+        );
 
         let result = tokio::time::timeout(self.timeout, process.wait_with_output())
             .await
@@ -183,7 +187,7 @@ pub struct CreateArgs {
     pub console_socket: Option<PathBuf>,
     pub no_pivot: bool,
     pub no_new_keyring: bool,
-    pub detach: bool
+    pub detach: bool,
 }
 
 impl Args for CreateArgs {
@@ -203,7 +207,7 @@ impl Args for CreateArgs {
                     .context(InvalidPathError {})?
                     .to_string_lossy()
                     .parse()
-                    .unwrap()
+                    .unwrap(),
             )
         }
 
@@ -242,7 +246,7 @@ impl Args for KillArgs {
 
 /// runc delete arguments
 pub struct DeleteArgs {
-    pub force: bool
+    pub force: bool,
 }
 
 impl Args for DeleteArgs {
@@ -263,17 +267,17 @@ impl Drop for Runc {
     fn drop(&mut self) {
         if let Some(root) = self.root.clone() {
             if let Err(e) = std::fs::remove_dir_all(&root) {
-                warn!("failed to cleanup root directory: {}", e);
+                log::warn!("failed to cleanup root directory: {}", e);
             }
         }
         if let Some(system_runc) = find_binary("runc") {
             if system_runc != self.command {
                 if let Err(e) = std::fs::remove_file(&self.command) {
-                    warn!("failed to remove runc binary: {}", e);
+                    log::warn!("failed to remove runc binary: {}", e);
                 }
             }
         } else if let Err(e) = std::fs::remove_file(&self.command) {
-            warn!("failed to remove runc binary: {}", e);
+            log::warn!("failed to remove runc binary: {}", e);
         }
     }
 }
@@ -282,29 +286,31 @@ impl Drop for Runc {
 mod tests {
     use uuid::Uuid;
 
-    use std::env::{temp_dir, var_os, var, current_dir};
-    use std::fs::{create_dir_all, File, copy};
-    use std::path::{PathBuf, Path};
+    use std::env::{temp_dir, var_os};
+    use std::fs::{copy, create_dir_all};
+    use std::path::{PathBuf};
 
-    use crate::container::{RuncConfiguration, Runc, CreateArgs, KillArgs, DeleteArgs};
     use crate::console::ConsoleSocket;
-    use shared::utils::unpack;
-    use tokio::time::sleep;
-    use std::time::Duration;
-    use tokio::runtime::Runtime;
+    use crate::container::{CreateArgs, DeleteArgs, Runc, RuncConfiguration};
     use log::error;
-    use crate::Error;
+    use shared::utils::unpack;
+    use std::time::Duration;
+    use tokio::time::sleep;
 
     const BUSYBOX_ARCHIVE: &str = "../../../fixtures/busybox.tar.gz";
     const RUNC_FIXTURE: &str = "../../../fixtures/runc.amd64";
 
     struct TestContainer {
         id: String,
-        runc: Option<Runc>
+        runc: Option<Runc>,
     }
 
     impl TestContainer {
-        async fn new(runc_path: &PathBuf, runc_root: &PathBuf, archive_bundle: &PathBuf) -> crate::Result<Self> {
+        async fn new(
+            runc_path: &PathBuf,
+            runc_root: &PathBuf,
+            archive_bundle: &PathBuf,
+        ) -> crate::Result<Self> {
             let id = format!("{}", Uuid::new_v4());
             let bundle = temp_dir().join(&id);
 
@@ -317,30 +323,42 @@ mod tests {
             let runc = Runc::new(config)?;
 
             let socket_path = temp_dir().join(&id).with_extension("console");
-            let console_socket = ConsoleSocket::new(&socket_path).expect("Unable to create the console socket.");
+            let console_socket =
+                ConsoleSocket::new(&socket_path).expect("Unable to create the console socket.");
 
             tokio::spawn(async move {
-                match console_socket.get_listener().as_ref().unwrap().accept().await {
+                match console_socket
+                    .get_listener()
+                    .as_ref()
+                    .unwrap()
+                    .accept()
+                    .await
+                {
                     Ok((stream, _socket_addr)) => {
                         Box::leak(Box::new(stream));
-                    },
+                    }
                     Err(err) => {
                         error!("Receive PTY master error : {:?}", err)
                     }
                 }
             });
 
-            runc.run(&id, &bundle, Some(&CreateArgs {
-                detach: true,
-                console_socket: Some(socket_path),
-                no_new_keyring: false,
-                no_pivot: false,
-                pid_file: None
-            })).await?;
+            runc.run(
+                &id,
+                &bundle,
+                Some(&CreateArgs {
+                    detach: true,
+                    console_socket: Some(socket_path),
+                    no_new_keyring: false,
+                    no_pivot: false,
+                    pid_file: None,
+                }),
+            )
+            .await?;
 
             Ok(Self {
                 runc: Some(runc),
-                id
+                id,
             })
         }
     }
@@ -349,10 +367,10 @@ mod tests {
     fn setup_test_sequence() -> (PathBuf, PathBuf) {
         let sequence_id = format!("{}", Uuid::new_v4());
         let mut sequence_path = temp_dir().join(&sequence_id);
-        let sequence_root = PathBuf::from(var_os("XDG_RUNTIME_DIR")
-            .expect("Expected temporary path"))
-            .join("runc")
-            .join(&sequence_id);
+        let sequence_root =
+            PathBuf::from(var_os("XDG_RUNTIME_DIR").expect("Expected temporary path"))
+                .join("runc")
+                .join(&sequence_id);
 
         create_dir_all(&sequence_root).expect("Unable to create runc root");
         create_dir_all(&sequence_path).expect("Unable to create the temporary folder");
@@ -375,16 +393,22 @@ mod tests {
 
         let runc = Runc::new(config).expect("Unable to create runc instance");
 
-
         let id = format!("{}", Uuid::new_v4());
         let socket_path = temp_dir().join(&id).with_extension("console");
-        let console_socket = ConsoleSocket::new(&socket_path).expect("Unable to create the console socket.");
+        let console_socket =
+            ConsoleSocket::new(&socket_path).expect("Unable to create the console socket.");
 
         tokio::spawn(async move {
-            match console_socket.get_listener().as_ref().unwrap().accept().await {
+            match console_socket
+                .get_listener()
+                .as_ref()
+                .unwrap()
+                .accept()
+                .await
+            {
                 Ok((stream, _socket_addr)) => {
                     Box::leak(Box::new(stream));
-                },
+                }
                 Err(err) => {
                     error!("Receive PTY master error : {:?}", err)
                 }
@@ -393,20 +417,26 @@ mod tests {
 
         let bundle = temp_dir().join(&id);
 
-        unpack(BUSYBOX_ARCHIVE, &bundle);
+        let _ = unpack(BUSYBOX_ARCHIVE, &bundle);
 
-        runc.run(&id, &bundle, Some(&CreateArgs {
-            pid_file: None,
-            console_socket: Some(socket_path),
-            no_pivot: false,
-            no_new_keyring: false,
-            detach: true
-        })).await.expect("Failed to run the container");
+        runc.run(
+            &id,
+            &bundle,
+            Some(&CreateArgs {
+                pid_file: None,
+                console_socket: Some(socket_path),
+                no_pivot: false,
+                no_new_keyring: false,
+                detach: true,
+            }),
+        )
+        .await
+        .expect("Failed to run the container");
 
+        sleep(Duration::from_millis(500)).await;
 
-        sleep(Duration::from_millis(500));
-
-        let container = runc.state(&id)
+        let container = runc
+            .state(&id)
             .await
             .expect("Unable to get the state of the container");
 
@@ -417,9 +447,9 @@ mod tests {
     async fn test_it_delete_a_container() {
         let (runc_path, runc_root) = setup_test_sequence();
 
-        let container = TestContainer::new(
-            &runc_path, &runc_root, &PathBuf::from(BUSYBOX_ARCHIVE)
-        ).await.expect("Unable to create the container");
+        let container = TestContainer::new(&runc_path, &runc_root, &PathBuf::from(BUSYBOX_ARCHIVE))
+            .await
+            .expect("Unable to create the container");
 
         let runc = container.runc.unwrap();
 
@@ -436,16 +466,15 @@ mod tests {
         let containers = runc.list().await.expect("Unable to list containers");
 
         assert!(containers.is_empty())
-
     }
 
     #[tokio::test]
     async fn test_it_force_delete_a_container() {
         let (runc_path, runc_root) = setup_test_sequence();
 
-        let container = TestContainer::new(
-            &runc_path, &runc_root, &PathBuf::from(BUSYBOX_ARCHIVE)
-        ).await.expect("Unable to create the container");
+        let container = TestContainer::new(&runc_path, &runc_root, &PathBuf::from(BUSYBOX_ARCHIVE))
+            .await
+            .expect("Unable to create the container");
 
         let runc = container.runc.unwrap();
 
@@ -458,16 +487,15 @@ mod tests {
         let containers = runc.list().await.expect("Unable to list containers");
 
         assert!(containers.is_empty())
-
     }
 
     #[tokio::test]
     async fn test_it_kill_a_container() {
         let (runc_path, runc_root) = setup_test_sequence();
 
-        let container = TestContainer::new(
-            &runc_path, &runc_root, &PathBuf::from(BUSYBOX_ARCHIVE)
-        ).await.expect("Unable to create the container");
+        let container = TestContainer::new(&runc_path, &runc_root, &PathBuf::from(BUSYBOX_ARCHIVE))
+            .await
+            .expect("Unable to create the container");
 
         let runc = container.runc.unwrap();
 
@@ -477,7 +505,8 @@ mod tests {
 
         sleep(Duration::from_millis(500)).await;
 
-        let container_state = runc.state(&container.id)
+        let container_state = runc
+            .state(&container.id)
             .await
             .expect("Unable to get the container state");
 

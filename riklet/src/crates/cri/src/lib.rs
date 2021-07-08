@@ -1,15 +1,15 @@
-use snafu::{Snafu, ResultExt, OptionExt};
 use async_trait::async_trait;
-use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
 use log::{debug, error};
+use serde::{Deserialize, Serialize};
+use snafu::{OptionExt, ResultExt, Snafu};
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 use std::iter::FromIterator;
 
-pub mod container;
 pub mod console;
+pub mod container;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -49,7 +49,10 @@ trait Executable: Args {
         Ok(combined)
     }
 
-    fn append_opts(args: &mut Vec<String>, opts: Option<&dyn Args>) -> Result<()> where Self: Sized {
+    fn append_opts(args: &mut Vec<String>, opts: Option<&dyn Args>) -> Result<()>
+    where
+        Self: Sized,
+    {
         if let Some(opts) = opts {
             args.append(&mut opts.args()?);
         }
@@ -75,5 +78,3 @@ pub struct Container {
     /// Annotations
     pub annotations: Option<HashMap<String, String>>,
 }
-
-
