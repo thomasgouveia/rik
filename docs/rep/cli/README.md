@@ -5,6 +5,8 @@ It sends and receives HTTP requests to/from the REST API developed by the contro
 
 It uses the crate [clap](https://crates.io/crates/clap), a command line argument parser.
 
+<img alt="schema riktl" src="https://media.discordapp.net/attachments/828205694465343508/862676468008878102/unknown.png?width=1025&height=328" />
+
 ## Cluster connection
 
 ---
