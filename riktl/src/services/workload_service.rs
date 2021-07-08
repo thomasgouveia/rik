@@ -1,4 +1,3 @@
-use crate::types::workloads::WorkloadDefinition;
 use httpclient::api::ApiRequest;
 use httpclient::ApiError;
 use prettytable::{format, Cell, Row, Table};
@@ -22,12 +21,10 @@ impl WorkloadService {
         for workload in workloads.iter() {
             let id = &workload["id"];
             let values = workload.get("value").unwrap();
-            let workload_definition: WorkloadDefinition =
-                serde_json::from_str(values.as_str().unwrap()).unwrap();
             table.add_row(Row::new(vec![
                 Cell::new(id.to_string().as_str()),
-                Cell::new(workload_definition.name.as_str()),
-                Cell::new(workload_definition.kind.as_str()),
+                Cell::new(values.get("name").unwrap().as_str().unwrap()),
+                Cell::new(values.get("kind").unwrap().as_str().unwrap()),
             ]));
         }
         table.printstd();
@@ -46,7 +43,7 @@ impl WorkloadService {
     }
 
     pub fn delete(id: String) -> Result<Value, ApiError> {
-        let body = format!(r#"{{"id": {}}}"#, id);
+        let body = format!(r#"{{"id": "{}"}}"#, id);
         let api_request: ApiRequest =
             ApiRequest::new(format!("{}{}", ENDPOINT, "delete"), Some(body), None)?;
         api_request.post()

@@ -19,11 +19,11 @@ fn main() -> Result<(), ApiError> {
     };
     if app.entity == Entity::WORKLOAD {
         if app.action == Action::CREATE {
-            WorkloadService::create(&app.file)?;
-            println!("Workload created");
+            let created = WorkloadService::create(&app.file)?;
+            println!("{}", created.get("id").unwrap().to_string());
         } else if app.action == Action::DELETE {
             WorkloadService::delete(app.workload_id.clone())?;
-            println!("Workload {} deleted.", &app.workload_id);
+            println!("{}", &app.workload_id);
         } else if app.action == Action::GET {
             WorkloadService::list()?;
         }

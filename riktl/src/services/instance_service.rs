@@ -15,16 +15,16 @@ impl InstanceService {
             ApiRequest::new(format!("{}{}", ENDPOINT, "list"), None, None)?;
         let instances = api_request.get()?;
         let mut table = Table::new();
-        table.set_titles(row!["id", "name", "workload_id"]);
+        table.set_titles(row!["id", "name", "status"]);
         table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
         for instance in instances.iter() {
             let id = &instance["id"];
             let name = &instance["name"];
-            let workload_id = &instance["workload_id"];
+            let values = &instance.get("value").unwrap();
             table.add_row(Row::new(vec![
                 Cell::new(id.to_string().as_str()),
                 Cell::new(name.to_string().as_str()),
-                Cell::new(workload_id.to_string().as_str()),
+                Cell::new(values.get("status").unwrap().to_string().as_str()),
             ]));
         }
         table.printstd();
@@ -39,7 +39,7 @@ impl InstanceService {
             nb_replicas = "1".to_string();
         }
         let body = format!(
-            r#"{{"workload_id": {},
+            r#"{{"workload_id": "{}",
         "replicas": {}}}"#,
             id, nb_replicas
         );
@@ -49,7 +49,7 @@ impl InstanceService {
     }
 
     pub fn delete(id: String) -> Result<Value, ApiError> {
-        let body = format!(r#"{{"id": {}}}"#, id);
+        let body = format!(r#"{{"id": "{}"}}"#, id);
         let api_request: ApiRequest =
             ApiRequest::new(format!("{}{}", ENDPOINT, "delete"), Some(body), None)?;
         api_request.post()

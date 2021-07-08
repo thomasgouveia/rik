@@ -67,9 +67,20 @@ impl ApiRequest {
                         || response.status() == reqwest::StatusCode::NO_CONTENT
                         || response.status() == reqwest::StatusCode::OK
                     {
-                        return Ok(Value::Null);
+                        match response.text() {
+                            Ok(text) => {
+                                if text == "" {
+                                    return Ok(Value::Null);
+                                }
+                                let body_value: Value = serde_json::from_str(&text).unwrap();
+                                Ok(body_value)
+                            }
+                            Err(_) => Err(ApiError::CantReadResponse),
+                        }
                     } else {
-                        return Err(ApiError::BadStatus(response.status()));
+                        let error = response.status().clone();
+                        println!("{}", &response.text().unwrap());
+                        Err(ApiError::BadStatus(error))
                     }
                 }
                 Err(_) => return Err(ApiError::BadURI(self.uri)),
