@@ -154,9 +154,8 @@ impl Manager {
                             identifier
                         );
                     }
-                }
+                },
                 Event::InstanceMetric(identifier, metrics) => {
-                    debug!("MRTIC is {:#?}", Some(Status::Instance(metrics.clone())));
                     if let Some(controller) = &self.controller {
                         if let Err(e) = controller
                             .send(Ok(WorkerStatus {
@@ -168,7 +167,10 @@ impl Manager {
                             error!("Failed to send InstanceMetric to controller, reason: {}", e);
                         }
                     }
-                }
+                },
+                Event::InstanceMetricsUpdate(identifier, metrics) => {
+
+                },
                 _ => unimplemented!("You think I'm not implemented ? Hold my beer"),
             }
         }

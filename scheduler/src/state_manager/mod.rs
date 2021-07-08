@@ -3,7 +3,7 @@ mod lib;
 use crate::state_manager::lib::get_random_hash;
 use definition::workload::WorkloadDefinition;
 use log::{debug, error, info};
-use proto::common::{InstanceMetric, WorkloadRequestKind, ResourceStatus};
+use proto::common::{InstanceMetric, WorkerMetric, WorkloadRequestKind, ResourceStatus};
 use proto::worker::InstanceScheduling;
 use rand::seq::IteratorRandom;
 use rik_scheduler::{Event, SchedulerError, Worker, WorkloadChannelType, WorkloadRequest};
@@ -18,6 +18,8 @@ use tokio::task::JoinHandle;
 pub enum StateManagerEvent {
     Schedule(WorkloadRequest),
     Shutdown,
+    InstanceUpdate(InstanceMetric),
+    WorkerUpdate(WorkerMetric),
 }
 
 impl fmt::Display for StateManagerEvent {
@@ -68,6 +70,8 @@ impl StateManager {
                     return Ok(());
                 }
                 StateManagerEvent::Schedule(workload) => self.process_schedule_request(workload),
+                StateManagerEvent::InstanceUpdate(metrics) => self.process_instance_update(metrics),
+                StateManagerEvent::WorkerUpdate(metrics) => self.process_metric_update(metrics),
             };
             self.update_state().await;
         }
@@ -82,6 +86,16 @@ impl StateManager {
             );
             SchedulerError::ClientDisconnected
         })
+    }
+
+    fn process_instance_update(&mut self, metrics: InstanceMetric) -> Result<(), SchedulerError> {
+        debug!("Received an instance update {}", metrics);
+        Ok(())
+    }
+
+    fn process_metric_update(&mut self, metrics: WorkerMetric) -> Result<(), SchedulerError> {
+        unimplemented!("Metrics update isn't implemented for now");
+        Ok(())
     }
 
     async fn update_state(&mut self) {
