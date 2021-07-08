@@ -1,8 +1,14 @@
 use clap::Clap;
 use futures::stream::TryStreamExt;
 use ipnetwork::IpNetwork;
-use rtnetlink::{new_connection, Error};
+use rtnetlink::{new_connection, Error, NetworkNamespace};
 use std::process::Command;
+
+#[tokio::main]
+async fn create_netns(name: String) -> Result<(), Error> {
+    NetworkNamespace::add(name.to_string()).await?;
+    Ok(())
+}
 
 #[tokio::main]
 async fn create_veth(link_name1: String, link_name2: String) -> Result<(), Error> {
@@ -34,6 +40,22 @@ async fn add_address(link_name: String, ip: IpNetwork) -> Result<(), Error> {
             .execute()
             .await?
     }
+    Ok(())
+}
+
+fn add_address_in_netns(link_name: String, netns: String, ip: IpNetwork) -> Result<(), Error> {
+    Command::new("sh")
+        .arg("-c")
+        .arg(
+            "ip netns exec ".to_string()
+                + netns.as_str()
+                + " ip address add "
+                + ip.to_string().as_str()
+                + " dev "
+                + link_name.as_str(),
+        )
+        .output()
+        .expect("failed to execute process");
     Ok(())
 }
 
@@ -93,6 +115,7 @@ fn main() -> Result<(), String> {
 
     //println!("The netns path is {}!", args.netns_path);
 
+    // Cause -> veth can't have more than 15 characters
     if args.namespace.len() > 12 {
         eprintln!("name must have less than 13 characters");
         std::process::exit(2);
@@ -109,24 +132,18 @@ fn main() -> Result<(), String> {
         std::process::exit(1);
     });
 
+    match create_netns(args.namespace.clone()) {
+        Ok(yes) => yes,
+        Err(error) => {
+            eprintln!("Error create_namespace: {}", error.to_string());
+            std::process::exit(1);
+        }
+    };
+
     match create_veth(name_host.clone(), name_container.clone()) {
         Ok(yes) => yes,
         Err(error) => {
             eprintln!("Error create_veth: {}", error.to_string());
-            std::process::exit(1);
-        }
-    };
-    match add_address(name_host.clone(), ip_host) {
-        Ok(yes) => yes,
-        Err(error) => {
-            eprintln!("Error add_address host: {}", error.to_string());
-            std::process::exit(1);
-        }
-    };
-    match add_address(name_container.clone(), ip_container) {
-        Ok(yes) => yes,
-        Err(error) => {
-            eprintln!("Error add_address container: {}", error.to_string());
             std::process::exit(1);
         }
     };
@@ -147,7 +164,7 @@ fn main() -> Result<(), String> {
         }
     };
 
-    match set_up_veth_in_netns(name_container, args.namespace.clone()) {
+    match set_up_veth_in_netns(name_container.clone(), args.namespace.clone()) {
         Ok(yes) => yes,
         Err(error) => {
             eprintln!("Error set_up_veth_in_netns: {}", error.to_string());
@@ -155,5 +172,19 @@ fn main() -> Result<(), String> {
         }
     };
 
+    match add_address(name_host.clone(), ip_host) {
+        Ok(yes) => yes,
+        Err(error) => {
+            eprintln!("Error add_address host: {}", error.to_string());
+            std::process::exit(1);
+        }
+    };
+    match add_address_in_netns(name_container.clone(), args.namespace.clone(), ip_container) {
+        Ok(yes) => yes,
+        Err(error) => {
+            eprintln!("Error add_address container: {}", error.to_string());
+            std::process::exit(1);
+        }
+    };
     Ok(())
 }
