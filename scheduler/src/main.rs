@@ -99,16 +99,15 @@ impl Manager {
                     }
                 }
                 Event::ScheduleRequest(workload) => {
-                    if let Some(_) = &self.controller {
-                        if let Err(e) = self
-                            .state_manager
-                            .send(StateManagerEvent::Schedule(workload))
-                            .await
-                        {
-                            error!("Failed to communicate with StateManager, reason: {}", e)
-                        }
-                    } else {
-                        error!("Cannot handle ScheduleRequest if no GetUpdates route from controller is available");
+                    if let Err(e) = self
+                        .state_manager
+                        .send(StateManagerEvent::Schedule(workload))
+                        .await
+                    {
+                        error!("Failed to communicate with StateManager, reason: {}", e);
+                    }
+                    if self.controller.is_none() {
+                        warn!("Be aware there is no GetUpdates connected from a controller");
                     }
                 }
                 Event::Schedule(worker_id, instance) => {

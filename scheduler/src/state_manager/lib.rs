@@ -1,5 +1,5 @@
-use rand::distributions::Alphanumeric;
 use proto::common::ResourceStatus;
+use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 
 pub fn get_random_hash(size: usize) -> String {
@@ -10,7 +10,7 @@ pub fn get_random_hash(size: usize) -> String {
         .collect()
 }
 
-pub fn resource_status_to_int(status: ResourceStatus) -> i32 {
+pub fn resource_status_to_int(status: &ResourceStatus) -> i32 {
     match status {
         ResourceStatus::Destroying => 6,
         ResourceStatus::Creating => 5,
@@ -22,7 +22,7 @@ pub fn resource_status_to_int(status: ResourceStatus) -> i32 {
     }
 }
 
-pub fn int_to_resource_status(status: i32) -> ResourceStatus {
+pub fn int_to_resource_status(status: &i32) -> ResourceStatus {
     match status {
         6 => ResourceStatus::Destroying,
         5 => ResourceStatus::Creating,

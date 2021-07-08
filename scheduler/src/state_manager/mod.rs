@@ -1,12 +1,14 @@
 mod lib;
 
-use crate::state_manager::lib::{get_random_hash, resource_status_to_int, int_to_resource_status};
+use crate::state_manager::lib::{get_random_hash, int_to_resource_status, resource_status_to_int};
 use definition::workload::WorkloadDefinition;
 use log::{debug, error, info};
 use proto::common::{InstanceMetric, ResourceStatus, WorkerMetric, WorkloadRequestKind};
 use proto::worker::InstanceScheduling;
 use rand::seq::IteratorRandom;
-use rik_scheduler::{Event, SchedulerError, Worker, WorkloadChannelType, WorkloadRequest, WorkerState};
+use rik_scheduler::{
+    Event, SchedulerError, Worker, WorkerState, WorkloadChannelType, WorkloadRequest,
+};
 use std::collections::HashMap;
 use std::fmt;
 use std::slice::Iter;
@@ -70,8 +72,16 @@ impl StateManager {
                     return Ok(());
                 }
                 StateManagerEvent::Schedule(workload) => self.process_schedule_request(workload),
-                StateManagerEvent::InstanceUpdate(metrics) => self.process_instance_update(metrics),
-                StateManagerEvent::WorkerUpdate(identifier, metrics) => self.process_metric_update(identifier, metrics),
+                StateManagerEvent::InstanceUpdate(metrics) => {
+                    self.manager_channel.send(Event::InstanceMetric(
+                        "scheduler".to_string(),
+                        metrics.clone()
+                    )).await;
+                    self.process_instance_update(metrics)
+                },
+                StateManagerEvent::WorkerUpdate(identifier, metrics) => {
+                    self.process_metric_update(identifier, metrics)
+                }
             };
             self.update_state().await;
         }
@@ -89,37 +99,55 @@ impl StateManager {
     }
 
     fn process_instance_update(&mut self, metrics: InstanceMetric) -> Result<(), SchedulerError> {
-        debug!("[process_instance_update] Instance {} and received {} status", metrics.instance_id, &metrics.status);
-        // let workload = self
-        //     .state
-        //     .iter_mut()
-        //     .find(|(_, workload)| workload.instances.contains_key(&metrics.instance_id));
-        //
-        // if let Some((_, workload)) = workload {
-        //     let instance = workload.instances.get_mut(&metrics.instance_id).unwrap();
-        //     //instance.status = int_to_resource_status(metrics.status);
-        //     info!("Instance {} updated status to {}", instance.id, instance.status);
-        // } else {
-        //     error!("Could not process instance {} update, as it does not exist", metrics.instance_id);
-        // }
+        debug!(
+            "[process_instance_update] Instance {} and received {} status",
+            metrics.instance_id, &metrics.status
+        );
+        let workload = self
+            .state
+            .iter_mut()
+            .find(|(_, workload)| workload.instances.contains_key(&metrics.instance_id));
 
+        if let Some((_, workload)) = workload {
+            let status = int_to_resource_status(&metrics.status);
+            if status == ResourceStatus::Terminated {
+                debug!("Deleted instance {} on workload {}", &metrics.instance_id, &workload.id);
+                workload.instances.remove(&metrics.instance_id);
+            } else {
+                let instance = workload.instances.get_mut(&metrics.instance_id).unwrap();
+                instance.status = int_to_resource_status(&metrics.status);
+                info!(
+                    "Instance {} updated status to {:#?}",
+                    instance.id, &instance.status
+                );
+            }
+        } else {
+            error!(
+                "Could not process instance {} update, as it does not exist",
+                metrics.instance_id
+            );
+        }
 
         Ok(())
     }
 
-    fn process_metric_update(&mut self, identifier: String, metrics: WorkerMetric) -> Result<(), SchedulerError> {
-        error!(
-            "Metrics update is not implemented for now but received {:#?}",
-            metrics
-        );
+    fn process_metric_update(
+        &mut self,
+        identifier: String,
+        metrics: WorkerMetric,
+    ) -> Result<(), SchedulerError> {
+        error!("Metrics update is not implemented for now but are received",);
 
         let mut lock = self.workers.lock().unwrap();
         if let Some(worker) = lock.iter_mut().find(|worker| worker.id.eq(&identifier)) {
-            if int_to_resource_status(metrics.status) == ResourceStatus::Running {
+            if int_to_resource_status(&metrics.status) == ResourceStatus::Running {
                 worker.set_state(WorkerState::Ready);
             }
         } else {
-            error!("Received metrics for worker {} but could not find registration associated", identifier);
+            error!(
+                "Received metrics for worker {} but could not find registration associated",
+                identifier
+            );
         }
 
         Ok(())
