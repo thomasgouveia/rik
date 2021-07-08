@@ -273,17 +273,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "main"
-version = "0.1.0"
-dependencies = [
- "clap",
- "futures",
- "ipnetwork",
- "rtnetlink",
- "tokio",
-]
-
-[[package]]
 name = "memchr"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -373,6 +362,17 @@ dependencies = [
  "futures",
  "libc",
  "log",
+ "tokio",
+]
+
+[[package]]
+name = "network"
+version = "1.0.0"
+dependencies = [
+ "clap",
+ "futures",
+ "ipnetwork",
+ "rtnetlink",
  "tokio",
 ]
 
