@@ -73,12 +73,14 @@ impl StateManager {
                 }
                 StateManagerEvent::Schedule(workload) => self.process_schedule_request(workload),
                 StateManagerEvent::InstanceUpdate(metrics) => {
-                    self.manager_channel.send(Event::InstanceMetric(
-                        "scheduler".to_string(),
-                        metrics.clone()
-                    )).await;
+                    self.manager_channel
+                        .send(Event::InstanceMetric(
+                            "scheduler".to_string(),
+                            metrics.clone(),
+                        ))
+                        .await;
                     self.process_instance_update(metrics)
-                },
+                }
                 StateManagerEvent::WorkerUpdate(identifier, metrics) => {
                     self.process_metric_update(identifier, metrics)
                 }
@@ -111,7 +113,10 @@ impl StateManager {
         if let Some((_, workload)) = workload {
             let status = int_to_resource_status(&metrics.status);
             if status == ResourceStatus::Terminated {
-                debug!("Deleted instance {} on workload {}", &metrics.instance_id, &workload.id);
+                debug!(
+                    "Deleted instance {} on workload {}",
+                    &metrics.instance_id, &workload.id
+                );
                 workload.instances.remove(&metrics.instance_id);
             } else {
                 let instance = workload.instances.get_mut(&metrics.instance_id).unwrap();
@@ -142,6 +147,8 @@ impl StateManager {
         if let Some(worker) = lock.iter_mut().find(|worker| worker.id.eq(&identifier)) {
             if int_to_resource_status(&metrics.status) == ResourceStatus::Running {
                 worker.set_state(WorkerState::Ready);
+            } else {
+                worker.set_state(WorkerState::NotReady);
             }
         } else {
             error!(
@@ -224,10 +231,7 @@ impl StateManager {
                                 "scheduler".to_string(),
                                 InstanceMetric {
                                     status: ResourceStatus::Destroying.into(),
-                                    metrics: format!(
-                                        "\"workload_id\": \"{}\"",
-                                        instance.worker_id.clone().unwrap()
-                                    ),
+                                    metrics: "".to_string(),
                                     instance_id: instance.id.clone(),
                                 },
                             ))
@@ -256,7 +260,7 @@ impl StateManager {
                         "scheduler".to_string(),
                         InstanceMetric {
                             status: ResourceStatus::Pending.into(),
-                            metrics: format!("\"workload_id\": \"{}\"", worker_id.clone()),
+                            metrics: format!("\"workload_id\": \"{}\"", workload_id.clone()),
                             instance_id: instance.id.clone(),
                         },
                     ))
