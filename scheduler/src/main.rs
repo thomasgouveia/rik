@@ -15,8 +15,9 @@ use rik_scheduler::Event;
 use rik_scheduler::{Controller, SchedulerError, Worker, WorkerRegisterChannelType};
 use std::default::Default;
 use std::net::{SocketAddr, SocketAddrV4};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::Mutex;
 use tonic::transport::Server;
 
 #[derive(Debug)]
@@ -107,7 +108,7 @@ impl Manager {
                     }
                 }
                 Event::Schedule(worker_id, instance) => {
-                    if let Some(sender) = self.get_worker_sender(&worker_id) {
+                    if let Some(sender) = self.get_worker_sender(&worker_id).await {
                         if let Err(e) = sender.send(Ok(instance)).await {
                             error!(
                                 "Failed to communicate with worker {}, reason: {}",
@@ -134,7 +135,7 @@ impl Manager {
                     }
                 }
                 Event::WorkerMetric(identifier, data) => {
-                    let mut workers = self.workers.lock().unwrap();
+                    let mut workers = self.workers.lock().await;
                     if let Some(worker) =
                         workers.iter_mut().find(|worker| worker.id.eq(&*identifier))
                     {
@@ -164,10 +165,11 @@ impl Manager {
                     }
                 }
                 Event::InstanceMetricsUpdate(_, metrics) => {
-                    if let Err(_) = self
+                    if self
                         .state_manager
                         .send(StateManagerEvent::InstanceUpdate(metrics))
                         .await
+                        .is_err()
                     {
                         error!(
                             "StateManager is in failed state, cannot forward InstanceMetricsUpdate"
@@ -175,10 +177,11 @@ impl Manager {
                     }
                 }
                 Event::WorkerMetricsUpdate(identifier, metrics) => {
-                    if let Err(_) = self
+                    if self
                         .state_manager
                         .send(StateManagerEvent::WorkerUpdate(identifier, metrics))
                         .await
+                        .is_err()
                     {
                         error!(
                             "StateManager is in failed state, cannot forward WorkerMetricsUpdate"
@@ -190,11 +193,11 @@ impl Manager {
         Ok(())
     }
 
-    fn get_worker_sender(&self, hostname: &str) -> Option<Sender<WorkerRegisterChannelType>> {
+    async fn get_worker_sender(&self, hostname: &str) -> Option<Sender<WorkerRegisterChannelType>> {
         if let Some(worker) = self
             .workers
             .lock()
-            .unwrap()
+            .await
             .iter_mut()
             .find(|worker| worker.id.eq(hostname))
         {
@@ -210,7 +213,7 @@ impl Manager {
         addr: SocketAddr,
         hostname: String,
     ) -> Result<(), SchedulerError> {
-        let mut workers = self.workers.lock().unwrap();
+        let mut workers = self.workers.lock().await;
         if let Some(worker) = workers.iter_mut().find(|worker| worker.id.eq(&*hostname)) {
             if !worker.channel.is_closed() {
                 error!(

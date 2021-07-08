@@ -9,8 +9,9 @@ use rand::seq::IteratorRandom;
 use rik_scheduler::{Event, SchedulerError, Worker, WorkerState, WorkloadRequest};
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::Mutex;
 
 #[derive(Debug)]
 pub enum StateManagerEvent {
@@ -71,18 +72,18 @@ impl StateManager {
                     self.process_instance_update(metrics)
                 }
                 StateManagerEvent::WorkerUpdate(identifier, metrics) => {
-                    self.process_metric_update(identifier, metrics)
+                    self.process_metric_update(identifier, metrics).await
                 }
             };
-            self.scan_workers();
+            self.scan_workers().await;
             self.update_state().await;
         }
         Err(SchedulerError::StateManagerFailed)
     }
 
-    fn scan_workers(&mut self) {
+    async fn scan_workers(&mut self) {
         let mut deactivated_workers = Vec::new();
-        let mut state = self.workers.lock().unwrap();
+        let mut state = self.workers.lock().await;
         {
             for worker in state.iter_mut() {
                 if worker.channel.is_closed() && worker.is_ready() {
@@ -150,12 +151,12 @@ impl StateManager {
         Ok(())
     }
 
-    fn process_metric_update(
+    async fn process_metric_update(
         &mut self,
         identifier: String,
         metrics: WorkerMetric,
     ) -> Result<(), SchedulerError> {
-        let mut lock = self.workers.lock().unwrap();
+        let mut lock = self.workers.lock().await;
         if let Some(worker) = lock.iter_mut().find(|worker| worker.id.eq(&identifier)) {
             if int_to_resource_status(&metrics.status) == ResourceStatus::Running {
                 worker.set_state(WorkerState::Ready);
@@ -173,9 +174,9 @@ impl StateManager {
     }
 
     async fn update_state(&mut self) {
-        if self.workers.lock().unwrap().len() == 0 {
+        if self.workers.lock().await.len() == 0 {
             info!("State isn't updated as there is no worker available");
-            return ();
+            return;
         }
 
         let mut scheduled: Vec<(String, WorkloadInstance)> = Vec::new();
@@ -257,7 +258,7 @@ impl StateManager {
         }
 
         for (workload_id, mut instance) in scheduled.into_iter() {
-            if let Some(worker_id) = self.get_eligible_worker() {
+            if let Some(worker_id) = self.get_eligible_worker().await {
                 let _ = self
                     .manager_channel
                     .send(Event::Schedule(
@@ -294,7 +295,7 @@ impl StateManager {
         let mut to_be_deleted = Vec::new();
         for key in self.state.keys().clone() {
             if let Some(workload) = self.state.get(key) {
-                if workload.replicas == 0 && workload.instances.len() == 0 {
+                if workload.replicas == 0 && workload.instances.is_empty() {
                     to_be_deleted.push(key.clone());
                 }
             }
@@ -345,12 +346,12 @@ impl StateManager {
 
     fn action_add_replicas(
         &mut self,
-        workload_id: &String,
+        workload_id: &str,
         replicas: &u16,
     ) -> Result<(), SchedulerError> {
         let workload = match self.state.get_mut(workload_id) {
             Some(wk) => Ok(wk),
-            None => Err(SchedulerError::WorkloadDontExists(workload_id.clone())),
+            None => Err(SchedulerError::WorkloadDontExists(workload_id.to_string())),
         }?;
 
         debug!(
@@ -364,12 +365,12 @@ impl StateManager {
 
     fn action_minus_replicas(
         &mut self,
-        workload_id: &String,
+        workload_id: &str,
         replicas: &u16,
     ) -> Result<(), SchedulerError> {
         let workload = match self.state.get_mut(workload_id) {
             Some(wk) => Ok(wk),
-            None => Err(SchedulerError::WorkloadDontExists(workload_id.clone())),
+            None => Err(SchedulerError::WorkloadDontExists(workload_id.to_string())),
         }?;
         debug!(
             "[action_double_replicas] Minus replicas for {}, removed {} to {}",
@@ -415,8 +416,8 @@ impl StateManager {
         Ok(())
     }
 
-    fn get_eligible_worker(&self) -> Option<String> {
-        let workers = self.workers.lock().unwrap();
+    async fn get_eligible_worker(&self) -> Option<String> {
+        let workers = self.workers.lock().await;
         {
             let workers = workers.iter().filter(|worker| worker.is_ready());
             if let Some(worker) = workers.choose(&mut rand::thread_rng()) {
@@ -468,7 +469,7 @@ impl WorkloadInstance {
         debug!(
             "WorkloadInstance {} was assigned to worker {}",
             self.id,
-            worker.clone().unwrap_or("None".to_string())
+            worker.clone().unwrap_or_else(|| "None".to_string())
         );
         self.worker_id = worker;
     }

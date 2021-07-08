@@ -1,6 +1,6 @@
 use shared::utils::generate_hash;
 use std::hash::Hash;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Hash)]
 pub enum ImagePullPolicy {
@@ -33,7 +33,7 @@ impl Image {
         }
     }
 
-    pub fn should_be_pulled(&self, directory: &PathBuf) -> bool {
+    pub fn should_be_pulled(&self, directory: &Path) -> bool {
         match &self.pull_policy {
             ImagePullPolicy::IfNotPresent => !directory.join(&self.get_uuid()).exists(),
             ImagePullPolicy::Always => true,
