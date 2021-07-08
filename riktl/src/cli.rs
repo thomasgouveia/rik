@@ -9,6 +9,7 @@ pub struct Cli {
     pub workload_id: String,
     pub instance_id: String,
     pub file: String,
+    pub replicas: String,
 }
 
 #[derive(Debug)]
@@ -79,6 +80,13 @@ impl Cli {
                     .takes_value(true)
                     .required_if_eq_all(&[("action", CMD_DELETE), ("entity", CMD_INSTANCE)]),
             )
+            .arg(
+                Arg::new("replicas")
+                    .short('n')
+                    .long("replicas")
+                    .about("The number of replicas")
+                    .takes_value(true),
+            )
             .get_matches();
 
         let action = match args
@@ -106,6 +114,12 @@ impl Cli {
             None => file = "",
         }
 
+        let replicas: &str;
+        match args.value_of("replicas") {
+            Some(r) => replicas = r,
+            None => replicas = "",
+        }
+
         let workload_id: &str;
         match args.value_of("workload_id") {
             Some(i) => workload_id = i,
@@ -131,10 +145,11 @@ impl Cli {
         }
         Ok(Cli {
             action,
-            entity: entity,
+            entity,
             file: String::from(file),
             workload_id: String::from(workload_id),
             instance_id: String::from(instance_id),
+            replicas: String::from(replicas),
         })
     }
 }

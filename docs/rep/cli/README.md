@@ -1,9 +1,9 @@
 # RIK Command Line Interface
 
 `riktl` is RIK's command interface and tool.
-It will send and receive HTTP requests to/from the REST API developed by the controler team.
+It sends and receives HTTP requests to/from the REST API developed by the controler team.
 
-It will use the crate [clap](https://crates.io/crates/clap), a command line argument parser.
+It uses the crate [clap](https://crates.io/crates/clap), a command line argument parser.
 
 ## Cluster connection
 
@@ -19,6 +19,10 @@ cluster:
   server: API-address
 ```
 
+Create this `rik.config.yaml` file wherever you want, then run this command with the path of your file :
+
+> export RIKCONFIG=`path/to/rik.config.yaml`
+
 The CLI will parse this file on every command, to get the API address.
 Each request will contain the YAML file in the payload.
 
@@ -28,7 +32,7 @@ Each request will contain the YAML file in the payload.
 
 Use the following syntax to run `riktl` commands from your terminal window.
 
-`riktl COMMAND TYPE [--NAME <id>] [OPTIONS]`
+`riktl COMMAND TYPE [OPTIONS]`
 
 - `riktl` supports the following `commands`:
 
@@ -42,8 +46,8 @@ Use the following syntax to run `riktl` commands from your terminal window.
   - workload
 
 - `riktl` supports the following `options`:
-  - --workload
-  - --instance
+  - -w | --workload
+  - -i |--instance
   - -f | --file
   - -n | --replicas
 
@@ -53,11 +57,15 @@ Use the following syntax to run `riktl` commands from your terminal window.
 
 ### Create a workload from a JSON file
 
-- `riktl create workload -f work.json`
+- `riktl create workload -f workload.json`
 
 ### Delete a workload.
 
 - `riktl delete workload --workload <workload-id>`
+
+### Get all workloads
+
+- `riktl get workload`
 
 ### Create an instance
 
@@ -67,9 +75,10 @@ Use the following syntax to run `riktl` commands from your terminal window.
 
 - `riktl delete instance --instance <instance-id>`
 
-### Get all workloads
 
-- `riktl get workload`
+### Get all instances
+
+- `riktl get instance`
 
 ### Help
 
@@ -115,7 +124,7 @@ Use the following syntax to run `riktl` commands from your terminal window.
 
 ---
 
-- Authentication system for multi tenant usage ? (`rik register`, `rik login`)
+- Authentication system for multi tenant usage ? (`riktl register`, `riktl login`)
 - Possibility to use the CLI in an imperative way ?
 - Create workload in a full command line ? (`riktl create workload --name NAME --image IMAGE ...`)
 - Lint JSON workload file. Linter should auto triggers on rik deploy but can be executed manually before deploy. (`riktl lint workload.yaml`)
