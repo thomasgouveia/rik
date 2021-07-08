@@ -1,6 +1,6 @@
 use crate::*;
 use log::warn;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use tokio::net::UnixListener;
 
 /// An implementation of a PTY socket
@@ -10,11 +10,11 @@ pub struct ConsoleSocket {
 }
 
 impl ConsoleSocket {
-    pub fn new(socket_path: &PathBuf) -> Result<Self> {
-        let listener = UnixListener::bind(&socket_path).context(UnixSocketOpenError {})?;
+    pub fn new(socket_path: &Path) -> Result<Self> {
+        let listener = UnixListener::bind(&socket_path.to_path_buf()).context(UnixSocketOpenError {})?;
         debug!("UnixListener binded on {}", &socket_path.to_str().unwrap());
         Ok(Self {
-            socket_path: socket_path.clone(),
+            socket_path: socket_path.to_path_buf(),
             listener: Some(listener),
         })
     }

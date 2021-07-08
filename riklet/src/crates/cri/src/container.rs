@@ -5,6 +5,7 @@ use snafu::ensure;
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::process::Command;
+use std::path::Path;
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct RuncConfiguration {
@@ -77,7 +78,7 @@ impl Runc {
     }
 
     /// Run a container.
-    pub async fn run(&self, id: &str, bundle: &PathBuf, opts: Option<&CreateArgs>) -> Result<()> {
+    pub async fn run(&self, id: &str, bundle: &Path, opts: Option<&CreateArgs>) -> Result<()> {
         let mut args = vec![String::from("run")];
         Self::append_opts(&mut args, opts.map(|opts| opts as &dyn Args))?;
 
