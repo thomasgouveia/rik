@@ -1,6 +1,6 @@
 [package]
 name = "riklet"
-version = "0.1.0"
+version = "1.0.0"
 authors = [
     "Thomas Gouveia <thomas.gouveia@etu.umontpellier.fr>",
     "Hugo Amalric <hugo.amalric@etu.umontpellier.fr>",
