@@ -22,7 +22,6 @@ assets = [
 ]
 
 [dependencies]
-proto = { git = "https://github.com/AlexandreBrg/rik", branch = "protolib", version="0.1.2" }
 cri = { path = "src/crates/cri" }
 oci = { path = "src/crates/oci" }
 shared = { path = "src/crates/shared" }
@@ -45,3 +44,7 @@ uuid = { version = "0.8", features = ["v4"] }
 clap = "3.0.0-beta.2"
 nix="0.21.0"
 gethostname = "0.2.1"
+
+[dependencies.proto]
+git = "https://github.com/AlexandreBrg/rik"
+branch = "protolib"

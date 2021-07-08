@@ -1,5 +1,6 @@
-use proto::common::{WorkerMetric, WorkerStatus, Workload, WorkerRegistration};
+use proto::common::{WorkerMetric, InstanceMetric, WorkerStatus, WorkerRegistration};
 use proto::worker::worker_client::WorkerClient;
+use proto::worker::{InstanceScheduling};
 use std::error::Error;
 use tonic::{transport::Channel, Request, Streaming};
 use crate::emitters::metrics_emitter::MetricsEmitter;
@@ -7,11 +8,12 @@ use crate::traits::EventEmitter;
 use std::time::Duration;
 use crate::config::Configuration;
 use oci::image_manager::ImageManager;
-use cri::container::{Runc, CreateArgs};
-use crate::structs::{WorkloadDefinition};
+use cri::container::{Runc, CreateArgs, DeleteArgs};
+use crate::structs::{WorkloadDefinition, Container};
 use std::path::PathBuf;
 use cri::console::ConsoleSocket;
 use clap::crate_version;
+use std::collections::HashMap;
 
 
 #[derive(Debug)]
@@ -19,9 +21,10 @@ pub struct Riklet {
     hostname: String,
     config: Configuration,
     client: WorkerClient<Channel>,
-    stream: Streaming<Workload>,
+    stream: Streaming<InstanceScheduling>,
     image_manager: ImageManager,
     container_runtime: Runc,
+    workloads: HashMap<String, Vec<Container>>
 }
 
 impl Riklet {
@@ -74,15 +77,46 @@ impl Riklet {
             image_manager,
             config,
             client,
-            stream
+            stream,
+            workloads: HashMap::<String, Vec<Container>>::new()
         })
     }
 
     /// Handle a workload (eg CREATE, UPDATE, DELETE, READ)
-    pub async fn handle_workload(&mut self, workload: &WorkloadDefinition) -> Result<(), Box<dyn Error>> {
-        let workload_uuid = workload.get_uuid();
-        for container in workload.get_containers() {
-            let container_uuid = container.get_uuid();
+    pub async fn handle_workload(&mut self, workload: &InstanceScheduling) -> Result<(), Box<dyn Error>> {
+        match &workload.action {
+            // Create
+            0 => {
+                self.create_workload(workload).await?;
+            },
+            // Delete
+            1 => {
+               self.delete_workload(workload).await?;
+            },
+            _ => {
+                log::error!("Method not allowed")
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn create_workload(&mut self, workload: &InstanceScheduling) -> Result<(), Box<dyn Error>> {
+        let workload_definition: WorkloadDefinition = serde_json::from_str(&workload.definition[..]).unwrap();
+        let instance_id: &String = &workload.instance_id;
+        let containers = workload_definition.get_containers(instance_id);
+
+        // Inform the scheduler that the workload is creating
+        self.send_status(5, instance_id).await;
+
+        self.workloads.insert(
+            instance_id.clone(),
+            containers.clone()
+        );
+
+        for container in containers {
+            let id = container.id.unwrap();
+
             let image = &self
                 .image_manager
                 .pull(&container.image[..])
@@ -90,7 +124,8 @@ impl Riklet {
 
             // New console socket for the container
             let socket_path = PathBuf::from(
-                format!("/tmp/{}-{}", container.name, container_uuid));
+                format!("/tmp/{}", &id)
+            );
             let console_socket = ConsoleSocket::new(&socket_path)?;
 
             tokio::spawn(async move {
@@ -103,8 +138,6 @@ impl Riklet {
                     }
                 }
             });
-
-            let id = format!("{}-{}-{}-{}", workload.name, container.name, workload_uuid, container_uuid);
             &self.container_runtime.run(&id[..], &image.bundle.as_ref().unwrap(), Some(&CreateArgs {
                 pid_file: None,
                 console_socket: Some(socket_path),
@@ -116,9 +149,44 @@ impl Riklet {
             log::info!("Started container {}", id);
         }
 
-        log::info!("Workload '{}' successfully processed.", &workload.name);
+        log::info!("Workload '{}' successfully processed.", &workload.instance_id);
+
+        // Inform the scheduler that the containers are running
+        self.send_status(2, instance_id).await;
 
         Ok(())
+    }
+
+    async fn delete_workload(&mut self, workload: &InstanceScheduling) -> Result<(), Box<dyn Error>> {
+        let instance_id= &workload.instance_id;
+        let containers = self.workloads.get(&instance_id[..]).unwrap();
+
+        for container in containers {
+            self.container_runtime.delete(&container.id.as_ref().unwrap()[..], Some(&DeleteArgs {
+                force: true
+            })).await?;
+            log::info!("Destroyed container {}", &container.id.as_ref().unwrap());
+        }
+
+        log::info!("Workload '{}' successfully destroyed.", &workload.instance_id);
+
+        // Inform the scheduler that the containers are running
+        self.send_status(4, &instance_id).await;
+
+        Ok(())
+    }
+
+    async fn send_status(&self, status: i32, instance_id: &String) {
+        MetricsEmitter::emit_event(self.client.clone(), vec![
+            WorkerStatus {
+                identifier: self.hostname.clone(),
+                status: Some(proto::common::worker_status::Status::Instance(InstanceMetric {
+                    instance_id: instance_id.clone(),
+                    status,
+                    metrics: "".to_string(),
+                })),
+            },
+        ]).await.unwrap();
     }
 
     /// Run the metrics updater
@@ -150,8 +218,7 @@ impl Riklet {
         &self.start_metrics_updater();
 
         while let Some(workload) = &self.stream.message().await? {
-            let workload_definition: WorkloadDefinition = serde_json::from_str(&workload.definition[..]).unwrap();
-            &self.handle_workload(&workload_definition).await;
+            &self.handle_workload(&workload).await;
         }
         Ok(())
     }
