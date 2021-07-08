@@ -25,18 +25,12 @@ pub fn send_create_instance(
     let workload: WorkloadDefinition =
         serde_json::from_str(&workload_db.value.to_string()).unwrap();
 
-    let instance_id: String = RikRepository::insert(
-        connection,
-        &format!("/instance/{}/default/{}", workload.kind, instance_name),
-        &format!("{{\"workload_id\": \"{}\"}}", &workload_id),
-    )
-    .unwrap();
     internal_sender
         .send(ApiChannel {
             action: CRUD::Create,
             workload_id: Some(workload_id),
             workload_definition: Some(workload),
-            instance_id: Some(instance_id),
+            instance_id: None,
         })
         .unwrap();
 }
