@@ -309,6 +309,20 @@ impl StateManager {
                 error!("Trying to schedule but cannot find any eligible worker");
             }
         }
+
+        let mut to_be_deleted = Vec::new();
+        for  key in self.state.keys().clone() {
+            if let Some(workload) = self.state.get(key) {
+                if workload.replicas == 0 && workload.instances.len() == 0 {
+                    to_be_deleted.push(key.clone());
+                }
+            }
+        }
+
+        for workload in to_be_deleted {
+            self.state.remove(&workload);
+            debug!("Deleted workload {} from current state", workload);
+        }
     }
 
     fn process_schedule_request(&mut self, request: WorkloadRequest) -> Result<(), SchedulerError> {
