@@ -1,3 +1,3 @@
-# Contributing to RIK
+# Contributing guide
 
-To be defined
+This section is under construction.
